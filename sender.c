@@ -5,8 +5,7 @@
 #include <string.h> //for memset
 #include <sys/types.h>  //for bind
 #include <arpa/inet.h>
-
-char* dumpRequest(int sockfd);
+#include "packet.c"
 
 //sample call: sender <portNum> CWnd Pl Pc
 
@@ -27,10 +26,15 @@ int main(int argc, char *argv[]){
     exit(1);
   }
 
+  if (windowSize < 1){
+    fprintf(stderr,"Window size must be at least 1\n");
+    exit(1);
+  }
+
   int socketfd, portNum, newSocketfd;
   struct sockaddr_in address,clientAddress;
   socklen_t clientLen;
-  char inPack[1028];//shoudl be set to max packet size
+  struct packet incoming, outgoing;
 
   //SOCK_DGRAM = UDP
   socketfd = socket(AF_INET, SOCK_DGRAM,0);
@@ -48,44 +52,69 @@ int main(int argc, char *argv[]){
   }
 
   //wait for receiver to send message
-  listen(socketfd,5);
   printf("Waiting for connection...\n");
 
   while(1){
     clientLen = sizeof(clientAddress);
-    if (recvfrom(socketfd,inPack, sizeof(inPack),0,(struct sockaddr*) &clientAddress,&clientLen) <0){
+    //recvfrom = get UDP datagram from receiver
+    //args = socket file descriptor, packet, size of packet, flag, address of 
+    //recevier
+    if (recvfrom(socketfd,&incoming, sizeof(incoming),0,(struct sockaddr*) &clientAddress,&clientLen) <0){
       printf("no packet received\n");
       continue;
     }
-    printf("received!\n");
+    printf("Received a packet!\n");
     //here print packet
+    printf("Data type:%d\n",incoming.type);
+    char* fileName = incoming.data;
+    printf("Requested file:%s\n",fileName);
+    
+    FILE *fp = fopen(incoming.data,"r");      
+    //file doesn't exist
+    if (fp == NULL){
+      printf("File doesn't exist.\n");
+      //set outgoing packet: FIN and seqNum = 0 to show that error
+      outgoing.type = 2;
+      outgoing.size = 0;
+      outgoing.seqNum = 0;
+      if (sendto(socketfd,&outgoing,sizeof(outgoing),0,(struct sockaddr *) &clientAddress,clientLen)<0){
+      printf("Error with sending FIN to receiver\n");
+      }
+    }
 
-    /*if (!fork()){
-    close(socketfd);
-    char* requestedFile;
-    requestedFile = dumpRequest(newSocketfd);
-    close(newSocketfd);
-    exit(0);
+    //file exists, read in and divide into packets
+    fseek(fp,0L,SEEK_END);
+    int fileSize = (int) ftell(fp);
+    if (fileSize <= 0){
+      printf("File size error\n");
+    }
+    fseek(fp,0L,SEEK_SET);
+
+    //read in file
+    char* buffer = NULL;
+    buffer= malloc(sizeof(char)*(fileSize +1));
+    int sourceSize = fread(buffer,1,fileSize,fp);
+    if (sourceSize == 0){
+      printf("File reading error\n");
+    }
+    fclose(fp);
+
+    //divide file into packets of max size 1000 bytes
+    int numPackets = fileSize/1024; 
+    if (fileSize % 1024 > 0){
+      numPackets++; //because need one more packet for extra data
+    }
+    
+    outgoing.type = 3;
+    
   }
-  close(newSocketfd);
-  }*/
+  free(buffer);
+  close(socketfd);
   return 0;
-  }
-  //after receiving message from receiver of what file wanted
+}
+
   //divide up file into 1k packets and add header-seq number, dest/send port
   //print message of sending - DATA packet, sequence number, corrupted/not
   //timer value
 
   //seq number and window size give in unit of bytes -max seq #= 30
-}
-
-char *dumpRequest(int sockfd){
-  char buffer[1028];
-  bzero(buffer,1028);
-  int n;
-  n = read(sockfd,buffer,1027);
-  if (n<0){
-    error("Error reading from socket\n");
-  }
-  printf("Requested File:\n%s\n", buffer);
-}
