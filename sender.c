@@ -175,6 +175,113 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   //need way of keeping track of smallest/largest position of packets sent
   //need way to correspond timer to each packet sent 
   //need to know if window at end and all sent
+  int packetsSent = 0;
+  int tempPos = 0;
+  int seqNumber = 0 ;
+  struct packet out;
+
+  while (packetsSent < numPackets){
+    //send windowSize number of packets
+    int i;
+    int* sentStatus;
+    int* ackReceived;
+    sentStatus = malloc(sizeof(int)*windowSize);
+    ackReceived = malloc(sizeof(int) * windowSize);
+    int minPos = 0;
+    int maxPos = windowSize - 1;
+
+    for (i = 0; i < windowSize; i++){
+      char message[1024];
+      int messageSize = 1024;
+      if (fileSize - tempPos <1024){
+	messageSize = fileSize - tempPos;
+      }
+      bzero(message,1024);
+      memcpy(message,buffer+tempPos, messageSize);
+      out.data = (char *)message;
+      out.size = sizeof(message);
+      out.type = 3;
+      out.seqNum = seqNumber;
+      sentStatus[i] = sendto(socketfd,&out, sizeof(out),0,(struct sockaddr *)
+			     &clientAddress,clientLen);
+      ackReceived[i] = 0; //default = 0, meaning no ack yet
+      seqNumber += 1024;
+      tempPos += 1024;
+      //print out what is sending- DATA packet of size x ...
+    }
+
+    //here can check value of sent to see if lost or corrupted
+    /*for(i = 0; i < windowSize; i++){
+      if (sentStatus[i] == 0){
+	//lost
+      }
+      else if (setnStatus[i] = 1){
+	//corrupted
+      }
+      else{
+	//packet sent
+      }
+    }*/
+    
+    int packetsSentTemp = windowSize;
+    int acksReceived = 0;
+    while (acksReceived < packetsSentTemp && acksReceived < windowSize){
+      //check for acks
+      fd_set inSet;
+      int received;
+      struct timeval timeout;
+      struct packet incoming; 
+
+      //need timer for each packet
+      timeout.tv_sec = 5;//change values here
+      timeout.tv_usec = 10;
+
+      FD_ZERO(&inSet);
+      FD_SET(socketfd, &inSet);
+      received = select(socketfd+1,&inSet, NULL,NULL,&timeout);
+      if (received < 1){
+	printf("Timed out when waiting for ACK\n");
+	//resend
+      }
+      if (recvfrom(socketfd,&incoming, sizeof(incoming),0,(struct sockaddr*) 
+		   &clientAddress,&clientLen) <0){
+	printf("issue with receiving packet\n");
+      }
+      //ACK for smallest in window
+      if (incoming.seqNum == minPos * 1024){
+	//send another packet
+	//if no packet to send then{
+	//packetsSentTemp--;
+	//acksReceived++;
+	//continue;
+	//}
+       //shift window (make sure not at end of data to send)
+       packetsSent++;
+       continue;
+      }
+
+      else{
+	// ack for some packet within window
+	packetsSentTemp--;
+	acksReceived++;
+	packetsSent++;
+	continue;
+      }
+    }
+  }
+  free(buffer);
+  //need to free all dynamically allocated variables
+}
+
+
+//To do:
+  //divide up file into 1k packets and add header-seq number, dest/send port
+  //print message of sending - DATA packet, sequence number, corrupted/not
+  //timer value
+  //seq number and window size give in unit of bytes -max seq #= 30
+
+
+
   //Pseudocode
   /*
     int packetsSent = 0;
@@ -203,20 +310,3 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       }
     }
    */
-
-
-
-
-  free(buffer);
-  /*for(i=0; i < windowSize;i++){
-    free(frame[i]);
-   }
-   free(frame);*/
-}
-
-
-//To do:
-  //divide up file into 1k packets and add header-seq number, dest/send port
-  //print message of sending - DATA packet, sequence number, corrupted/not
-  //timer value
-  //seq number and window size give in unit of bytes -max seq #= 30
