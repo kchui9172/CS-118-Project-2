@@ -8,6 +8,16 @@
 #include "packet.c"
 
 //sample call: sender <portNum> CWnd Pl Pc
+void printPacket(struct packet toPrint);
+void sendData(int socketfd, struct sockaddr_in clientAddress, 
+	      socklen_t clientLen,int windowSize,struct packet incoming);
+struct fileInfo readFile(char* fName,int socketfd, struct sockaddr_in 
+			 clientAddress, socklen_t clientLen);
+struct fileInfo{
+  char* buffer;
+  int size;
+};
+
 
 int main(int argc, char *argv[]){  
   if (argc < 5){
@@ -31,10 +41,11 @@ int main(int argc, char *argv[]){
     exit(1);
   }
 
+  //Variables
   int socketfd, portNum, newSocketfd;
   struct sockaddr_in address,clientAddress;
   socklen_t clientLen;
-  struct packet incoming, outgoing;
+  struct packet incoming;
 
   //SOCK_DGRAM = UDP
   socketfd = socket(AF_INET, SOCK_DGRAM,0);
@@ -57,64 +68,155 @@ int main(int argc, char *argv[]){
   while(1){
     clientLen = sizeof(clientAddress);
     //recvfrom = get UDP datagram from receiver
-    //args = socket file descriptor, packet, size of packet, flag, address of 
-    //recevier
-    if (recvfrom(socketfd,&incoming, sizeof(incoming),0,(struct sockaddr*) &clientAddress,&clientLen) <0){
-      printf("no packet received\n");
+    //args = socket fd, packet, size of packet, flag, address of recevier
+    if (recvfrom(socketfd,&incoming, sizeof(incoming),0,(struct sockaddr*) 
+		 &clientAddress,&clientLen) <0){
+      printf("No packet received\n");
       continue;
     }
     printf("Received a packet!\n");
     //here print packet
-    printf("Data type:%d\n",incoming.type);
-    char* fileName = incoming.data;
-    printf("Requested file:%s\n",fileName);
-    
-    FILE *fp = fopen(incoming.data,"r");      
-    //file doesn't exist
-    if (fp == NULL){
-      printf("File doesn't exist.\n");
-      //set outgoing packet: FIN and seqNum = 0 to show that error
-      outgoing.type = 2;
-      outgoing.size = 0;
-      outgoing.seqNum = 0;
-      if (sendto(socketfd,&outgoing,sizeof(outgoing),0,(struct sockaddr *) &clientAddress,clientLen)<0){
-      printf("Error with sending FIN to receiver\n");
-      }
-    }
+    printPacket(incoming);
 
-    //file exists, read in and divide into packets
-    fseek(fp,0L,SEEK_END);
-    int fileSize = (int) ftell(fp);
-    if (fileSize <= 0){
-      printf("File size error\n");
+    //Incoming packet is request
+    if (incoming.type == 0){
+      sendData(socketfd, clientAddress, clientLen, windowSize, incoming);
     }
-    fseek(fp,0L,SEEK_SET);
-
-    //read in file
-    char* buffer = NULL;
-    buffer= malloc(sizeof(char)*(fileSize +1));
-    int sourceSize = fread(buffer,1,fileSize,fp);
-    if (sourceSize == 0){
-      printf("File reading error\n");
-    }
-    fclose(fp);
-
-    //divide file into packets of max size 1000 bytes
-    int numPackets = fileSize/1024; 
-    if (fileSize % 1024 > 0){
-      numPackets++; //because need one more packet for extra data
-    }
-    
-    outgoing.type = 3;
-    
+    //if (incoming.type == 2){
+      //end of transaction
+    //}  
   }
-  free(buffer);
   close(socketfd);
   return 0;
 }
 
+void printPacket(struct packet toPrint){
+  printf("Packet Seq Num: %d\n",toPrint.seqNum);
+  char* packType;
+  if (toPrint.type == 0){
+    packType = "request";
+  }
+  else if (toPrint.type == 1){
+    packType = "ACK";
+  }
+  else if (toPrint.type == 2){
+    packType = "FIN";
+  }
+  else{
+    packType = "data";
+  }
+  printf("Packet type: %s\n",packType);
+  printf("Packet size: %d\n", toPrint.size);
+}
+
+struct fileInfo readFile(char* fName,int socketfd, struct sockaddr_in 
+			 clientAddress, socklen_t clientLen){
+  struct fileInfo f;
+  struct packet outgoing;
+  FILE *fp = fopen(fName,"r");      
+  //file doesn't exist
+  if (fp == NULL){
+    printf("File doesn't exist.\n");
+    //set outgoing packet: FIN and seqNum = 0 to show that error
+    outgoing.type = 2;
+    outgoing.size = 0;
+    outgoing.seqNum = 0;
+    if (sendto(socketfd,&outgoing,sizeof(outgoing),0,(struct sockaddr *) 
+	&clientAddress,clientLen)<0){
+      printf("Error with sending FIN to receiver\n");
+    }
+  }
+  
+  //find size of file
+  fseek(fp,0L,SEEK_END);
+  int fileSize = (int) ftell(fp);
+  if (fileSize <= 0){
+    printf("File size error\n");
+  }
+  fseek(fp,0L,SEEK_SET);
+
+  //read in file
+  char* buffer = NULL;
+  buffer= malloc(sizeof(char)*(fileSize +1));
+  int sourceSize = fread(buffer,1,fileSize,fp);
+  if (sourceSize == 0){
+    printf("File reading error\n");
+  }
+  fclose(fp);
+  f.size = sourceSize;
+  f.buffer = buffer;
+  return f;
+}
+
+void sendData(int socketfd, struct sockaddr_in clientAddress, 
+	      socklen_t clientLen,int windowSize,struct packet incoming){
+  struct packet outgoing;
+  char* fileName = incoming.data;
+  printf("Requested file:%s\n",fileName);
+  char* fName = incoming.data;
+  struct fileInfo info = readFile(fName, socketfd,clientAddress,clientLen);
+  int fileSize = info.size;
+  char* buffer = info.buffer;
+  
+  //divide file into packets of max size 1000 bytes
+  int numPackets = fileSize/1024; 
+  if (fileSize % 1024 > 0){
+    numPackets++; //because need one more packet for extra data
+  }
+
+  //send packet to receiver saying how many packets will be sent
+  printf("Sending number of packets that will be sent\n");
+  outgoing.type = 0;
+  outgoing.size = numPackets;
+  sendto(socketfd,&outgoing,sizeof(outgoing),0,(struct sockaddr *) 
+	     &clientAddress, clientLen);
+      
+  //start sending packets
+  //need way of keeping track of smallest/largest position of packets sent
+  //need way to correspond timer to each packet sent 
+  //need to know if window at end and all sent
+  //Pseudocode
+  /*
+    int packetsSent = 0;
+    while (packetsSent < numPackets){
+      //send windowSize number of packets
+      int packetsSentTemp = windowSize;
+      int acksReceived = 0;
+      while (acksReceived < packetsSentTemp && acksReceived <windowSize){
+         check for acks
+	 if ack for smallest in window
+	    send another packet 
+	       if not other packet to send
+	         packetsSentTemp--;
+		 acksReceived++;
+		 continue
+	    shift window (make sure not at end of data to send)
+	    packetsSent++;
+	    continue
+	 if ack wasn't for smallest window
+	    packetsSentTemp--;
+	    acksReceived++;
+	    packetsSent++;
+	    continue;
+	 if timeout
+	    resend packet
+      }
+    }
+   */
+
+
+
+
+  free(buffer);
+  /*for(i=0; i < windowSize;i++){
+    free(frame[i]);
+   }
+   free(frame);*/
+}
+
+
+//To do:
   //divide up file into 1k packets and add header-seq number, dest/send port
   //print message of sending - DATA packet, sequence number, corrupted/not
   //timer value
-
   //seq number and window size give in unit of bytes -max seq #= 30
