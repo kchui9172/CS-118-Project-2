@@ -74,7 +74,7 @@ int main(int argc, char *argv[]){
       printf("No packet received\n");
       continue;
     }
-    printf("Received a packet!\n");
+    printf("\nReceived a packet!\n");
     //here print packet
     printPacket(incoming);
 
@@ -91,10 +91,10 @@ int main(int argc, char *argv[]){
 }
 
 void printPacket(struct packet toPrint){
-  printf("Packet Seq Num: %d\n",toPrint.seqNum);
+  printf("\nPacket Seq Num: %d\n",toPrint.seqNum);
   char* packType;
   if (toPrint.type == 0){
-    packType = "request";
+    packType = "Request";
   }
   else if (toPrint.type == 1){
     packType = "ACK";
@@ -121,10 +121,13 @@ struct fileInfo readFile(char* fName,int socketfd, struct sockaddr_in
     outgoing.type = 2;
     outgoing.size = 0;
     outgoing.seqNum = 0;
+    printf("\nSending FIN packet to client\n");
+
     if (sendto(socketfd,&outgoing,sizeof(outgoing),0,(struct sockaddr *) 
 	&clientAddress,clientLen)<0){
       printf("Error with sending FIN to receiver\n");
     }
+    exit(1);
   }
   
   //find size of file
@@ -151,10 +154,11 @@ struct fileInfo readFile(char* fName,int socketfd, struct sockaddr_in
 void sendData(int socketfd, struct sockaddr_in clientAddress, 
 	      socklen_t clientLen,int windowSize,struct packet incoming){
   struct packet outgoing;
-  char* fileName = incoming.data;
-  printf("Requested file:%s\n",fileName);
-  char* fName = incoming.data;
-  struct fileInfo info = readFile(fName, socketfd,clientAddress,clientLen);
+  char* fileName;
+  fileName= incoming.data;
+  printf("Requested file: %s\n",fileName);
+  //char* fName = incoming.data;
+  struct fileInfo info = readFile(fileName, socketfd,clientAddress,clientLen);
   int fileSize = info.size;
   char* buffer = info.buffer;
   
@@ -175,7 +179,8 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   //need way of keeping track of smallest/largest position of packets sent
   //need way to correspond timer to each packet sent 
   //need to know if window at end and all sent
-  int packetsSent = 0;
+  
+  /*int packetsSent = 0;
   int tempPos = 0;
   int seqNumber = 0 ;
   struct packet out;
@@ -209,7 +214,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       tempPos += 1024;
       //print out what is sending- DATA packet of size x ...
     }
-
+  */
     //here can check value of sent to see if lost or corrupted
     /*for(i = 0; i < windowSize; i++){
       if (sentStatus[i] == 0){
@@ -222,7 +227,8 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	//packet sent
       }
     }*/
-    
+   
+  /*
     int packetsSentTemp = windowSize;
     int acksReceived = 0;
     while (acksReceived < packetsSentTemp && acksReceived < windowSize){
@@ -269,6 +275,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       }
     }
   }
+  */
   free(buffer);
   //need to free all dynamically allocated variables
 }
@@ -279,34 +286,3 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   //print message of sending - DATA packet, sequence number, corrupted/not
   //timer value
   //seq number and window size give in unit of bytes -max seq #= 30
-
-
-
-  //Pseudocode
-  /*
-    int packetsSent = 0;
-    while (packetsSent < numPackets){
-      //send windowSize number of packets
-      int packetsSentTemp = windowSize;
-      int acksReceived = 0;
-      while (acksReceived < packetsSentTemp && acksReceived <windowSize){
-         check for acks
-	 if ack for smallest in window
-	    send another packet 
-	       if not other packet to send
-	         packetsSentTemp--;
-		 acksReceived++;
-		 continue
-	    shift window (make sure not at end of data to send)
-	    packetsSent++;
-	    continue
-	 if ack wasn't for smallest window
-	    packetsSentTemp--;
-	    acksReceived++;
-	    packetsSent++;
-	    continue;
-	 if timeout
-	    resend packet
-      }
-    }
-   */

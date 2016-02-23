@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
+#include "packet.c"
 
 #define BUFSIZE 1024
 #define FILENAMESIZE 512
@@ -28,11 +29,11 @@ int main(int argc, char **argv) {
     struct sockaddr_in serveraddr;
     struct hostent *server;
     char *hostname;
-	char *filename;
-	struct packet p_in;
-	struct packet p_out;
+    char *filename;
+    struct packet p_in;
+    struct packet p_out;
     char buf[BUFSIZE];
-	FILE *file;
+    FILE *file;
 
     /* check command line arguments */
     if (argc != 6) {
@@ -44,9 +45,10 @@ int main(int argc, char **argv) {
     filename = argv[3];
     double corrupt = atof(argv[4]);
     double loss = atof(argv[5]);
+
     if (portno < 0)
     {		
-    	error("Error: Port number must be positive);
+    	error("Error: Port number must be positive");
     }	
     if(corrupt > 1 || corrupt < 0 || loss < 0 || loss > 1)
     {
@@ -65,7 +67,7 @@ int main(int argc, char **argv) {
     if (server == NULL) 
     {
         fprintf(stderr,"ERROR, no such host as %s\n", hostname);
-        exit(0);
+        exit(1);
     }
 
     /* build the server's Internet address */
@@ -73,19 +75,23 @@ int main(int argc, char **argv) {
     serveraddr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
+    serverlen = sizeof(serveraddr);
 
-	//packet is being requested
-	bzero(&p_out, sizeof(p_out));
-	p_out.type = 0;
-	p_out.seqNum = 0;
-	p_out.size = strlen(filename);
-	memcpy(p_out.data, filename, p_out.size);
-	
-	//send request message to server
-	printf("CLIENT: Sending request for file: %s\n", p_out.data);
-    n = sendto(sockfd, &p_out, sizeof(p_out), 0, (struct sockaddr*) &serv_addr, server_len); //send to the socket
-    if (n < 0) 
+    //packet is being requested
+    bzero(&p_out, sizeof(p_out));
+    p_out.type = 0;
+    p_out.seqNum = 0;
+    p_out.size = strlen(filename)+1;
+    strcpy(p_out.data,filename);
+
+
+    //send request message to server
+    printf("CLIENT: Sending request for file: %s\n", p_out.data);
+    n = sendto(sockfd, &p_out, sizeof(p_out), 0, (struct sockaddr*) &serveraddr, serverlen); //send to the socket
+    if (n < 0){ 
          error("ERROR writing to socket");
+	 //add something to fix if error
+    }
     printf("CLIENT: request for file sent. Waiting for server\n");
 	
 	//ACK response packet
@@ -107,7 +113,7 @@ int main(int argc, char **argv) {
 	//right now assume no corruption or loss
 	while(1)
 	{
-		n = recvfrom(sockfd, &p_in, sizeof(p_in), 0, (struct sockaddr*), &serveraddr, &serverlen);
+		n = recvfrom(sockfd, &p_in, sizeof(p_in), 0, (struct sockaddr*) &serveraddr, &serverlen);
 		if (n < 0)
 		{
 			error("ERROR in recvFrom");
@@ -127,7 +133,7 @@ int main(int argc, char **argv) {
 			}
 			else //means no data in packet
 			{
-				printf("CLIENT: Recieved non-data packet: seq # = %d\n", p_in.seqNum);
+				printf("CLIENT: Received non-data packet: seq # = %d\n", p_in.seqNum);
                 		continue;
 			}
 		}
@@ -138,9 +144,9 @@ int main(int argc, char **argv) {
 	//Send FIN packet and close client/socket
     bzero((char *) &p_out, sizeof(p_out));
     p_out.type = 2;
-    p_out.seqNum = current_seq;
+    p_out.seqNum = current_seqNum;
     p_out.size = 0;
-    n = sendto(sockfd, &p_out, sizeof(p_out),0, (struct sockaddr*) &serv_addr, server_len); //send to the socket
+    n = sendto(sockfd, &p_out, sizeof(p_out),0, (struct sockaddr*) &serveraddr, serverlen); //send to the socket
     if (n < 0)
 	{
 		error("ERROR sending FIN packet");
