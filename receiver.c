@@ -41,27 +41,29 @@ int main(int argc, char **argv) {
     }
     hostname = argv[1];
     portno = atoi(argv[2]);
-	filename = argv[3];
-	double corrupt = atof(argv[4]);
-	double loss = atof(argv[5]);
-	
-	if (portno < 0)
-	{
-		error("Error: Port number must be positive);
-	}
-	if(corrupt > 1 || corrupt < 0 || loss < 0 || loss > 1)
-	{
-		error("Error: Invalid probabilities for corruption and loss");
-	}
+    filename = argv[3];
+    double corrupt = atof(argv[4]);
+    double loss = atof(argv[5]);
+    if (portno < 0)
+    {		
+    	error("Error: Port number must be positive);
+    }	
+    if(corrupt > 1 || corrupt < 0 || loss < 0 || loss > 1)
+    {
+    	error("Error: Invalid probabilities for corruption and loss");
+    }	
 
     /* socket: create the socket */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0) 
+    if (sockfd < 0)
+    {
         error("ERROR opening socket");
+    }
 
     /* gethostbyname: get the server's DNS entry */
     server = gethostbyname(hostname);
-    if (server == NULL) {
+    if (server == NULL) 
+    {
         fprintf(stderr,"ERROR, no such host as %s\n", hostname);
         exit(0);
     }
@@ -69,8 +71,7 @@ int main(int argc, char **argv) {
     /* build the server's Internet address */
     bzero((char *) &serveraddr, sizeof(serveraddr));
     serveraddr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr, 
-	  (char *)&serveraddr.sin_addr.s_addr, server->h_length);
+    bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
 
 	//packet is being requested
@@ -127,7 +128,7 @@ int main(int argc, char **argv) {
 			else //means no data in packet
 			{
 				printf("CLIENT: Recieved non-data packet: seq # = %d\n", p_in.seqNum);
-                continue;
+                		continue;
 			}
 		}
 		
