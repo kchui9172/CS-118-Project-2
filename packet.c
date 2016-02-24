@@ -1,5 +1,5 @@
 //packet
-
+#include <time.h>
 #define PACKET_SIZE 1024
 
 struct packet{
@@ -7,4 +7,16 @@ struct packet{
   char data[PACKET_SIZE];
   int size;
   int seqNum;
+};
+
+
+struct package{
+  struct packet* p; //packet being sent
+  int acked; // 0 if false, 1 if true
+  int isMinPos;
+  int isMaxPos;
+  struct timeval timeout;
+  struct package* next;
+
+  
 };

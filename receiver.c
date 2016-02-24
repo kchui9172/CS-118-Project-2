@@ -55,6 +55,7 @@ int main(int argc, char **argv) {
     	error("Error: Invalid probabilities for corruption and loss");
     }	
 
+    printf("hello\n");
     /* socket: create the socket */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0)
@@ -69,20 +70,24 @@ int main(int argc, char **argv) {
         fprintf(stderr,"ERROR, no such host as %s\n", hostname);
         exit(1);
     }
-
+    printf("its me\n");
     /* build the server's Internet address */
     bzero((char *) &serveraddr, sizeof(serveraddr));
     serveraddr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
     serverlen = sizeof(serveraddr);
+    printf("i was wondering\n");
 
     //packet is being requested
     bzero(&p_out, sizeof(p_out));
     p_out.type = 0;
     p_out.seqNum = 0;
-    p_out.size = strlen(filename)+1;
-    strcpy(p_out.data,filename);
+    p_out.size = strlen(filename);
+    printf("if after all this time\n");
+    strcpy(p_out.data,filename)+1;
+    //memcpy(p_out.data,filename,p_out.size);
+
 
 
     //send request message to server
@@ -125,10 +130,12 @@ int main(int argc, char **argv) {
 		}
 		else //no packet loss or corruption
 		{
+		  printf("type: %d\n",p_in.type);
 			if(p_in.type == 3) //means this is a data packet
 			{
 				printf("CLIENT:Received data packet\n");
 				printf("Received Packet (type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
+				//printf("message: %s\n",p_in.data);
 				p_out.seqNum = current_seqNum;
 			}
 			else //means no data in packet
