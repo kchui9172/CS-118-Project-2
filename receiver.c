@@ -169,6 +169,7 @@ int main(int argc, char **argv) {
 				printf("Received Packet (type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
 				//printf("message: %s\n",p_in.data);
 				p_out.seqNum = current_seqNum;
+				current_seqNum++;
 			}
 			else //means no data in packet
 			{
