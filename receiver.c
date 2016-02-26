@@ -23,6 +23,20 @@ void error(char *msg) {
     exit(0);
 }
 
+//simulates if a packet is corrupt or lost based off its probability
+int corrupt_loss_simulation(double probability)
+{
+	double corrupt_or_loss = rand() / (double) RAND_MAX;
+	if (corrupt_or_loss < probability)
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
 int main(int argc, char **argv) {
     int sockfd, portno, n;
     int serverlen;
@@ -43,8 +57,10 @@ int main(int argc, char **argv) {
     hostname = argv[1];
     portno = atoi(argv[2]);
     filename = argv[3];
-    double corrupt = atof(argv[4]);
-    double loss = atof(argv[5]);
+    //double prob_corrupt = atof(argv[4]);
+    //double prob_loss = atof(argv[5]);
+	double prob_corrupt = 0.5;
+	double prob_loss = 0.5;
 
     if (portno < 0)
     {		
@@ -107,7 +123,7 @@ int main(int argc, char **argv) {
 	p_out.size = 0;
 	
 	char n_filename[FILENAMESIZE];
-	strcpy(n_filename, "n_");
+	strcpy(n_filename, "tn_");
 	strcat(n_filename, filename);
 	file = fopen(n_filename, "w+");
 	if (file == NULL)
@@ -115,14 +131,30 @@ int main(int argc, char **argv) {
 		error("Error opening file for writing");
 	}
 	
-	//right now assume no corruption or loss
 	while(1)
 	{
 		n = recvfrom(sockfd, &p_in, sizeof(p_in), 0, (struct sockaddr*) &serveraddr, &serverlen);
 		if (n < 0)
 		{
 			error("ERROR in recvFrom");
-		}			
+		}	
+		//now check for packet loss or corruption
+		else
+		{
+			if (corrupt_loss_simulation(prob_corrupt)) //means corrupted packet
+			{
+				printf("CLIENT: Packet Corrupted: seqNum: %d\n", p_in.seqNum);
+				continue;
+			}
+			else //check for loss
+			{
+				if(corrupt_loss_simulation(prob_loss)) //means packet loss
+				{
+					printf("CLIENT: Packet Lost: seqNum: %d\n", p_in.seqNum);
+					continue;
+				}
+			}
+		}
 		if(p_in.type == 2) //means final packet to acknowledge a close
 		{
 			printf("CLIENT: Received FIN packet");
@@ -130,7 +162,7 @@ int main(int argc, char **argv) {
 		}
 		else //no packet loss or corruption
 		{
-		  printf("type: %d\n",p_in.type);
+			printf("type: %d\n",p_in.type);
 			if(p_in.type == 3) //means this is a data packet
 			{
 				printf("CLIENT:Received data packet\n");
@@ -141,9 +173,17 @@ int main(int argc, char **argv) {
 			else //means no data in packet
 			{
 				printf("CLIENT: Received non-data packet: seq # = %d\n", p_in.seqNum);
-                		continue;
+                continue;
 			}
 		}
+		
+		//sending ACK packet
+		n = sendto(sockfd, &p_out, sizeof(p_out),0, (struct sockaddr*) &serveraddr, serverlen); //send to the socket
+		if (n < 0)
+		{
+			error("ERROR sending ACK packet");
+		}	
+		printf("CLIENT: sent ACK Packet (type: %d, seq: %d, size: %d)\n", p_out.type, p_out.seqNum, p_out.size);
 		
 	}
        
