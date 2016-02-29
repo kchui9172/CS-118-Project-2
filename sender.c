@@ -196,7 +196,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   int packetsSent=0;
   int packetsSentTemp = 0; //packets sent but not yet ACKed
   int minPos = 0;
-  int maxPos = PACKET_SIZE * windowSize;
+  int maxPos = PACKET_SIZE * (windowSize-1);
   int sequenceNum = 0;
   int filePos = 0; //track where in file sent so far
   int size; //size of packet
@@ -245,12 +245,21 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	if (front == NULL){ //first packet in window
 	  printf("first packet evaaa\n");
 	  pack->isMinPos = 1;
-	  //pack->isMaxPos = 0;
+	  pack->isMaxPos = 0;
 	  front = pack;
 	}
 	else{
 	  pack->isMinPos =0;
-	  front->next = pack;
+	  //loop until next == NULL
+	  struct package *point;
+	  point = front;
+	  while (point->next != NULL){
+	    point = point->next;
+	  }
+	  point->next = pack;
+	  if (pack->p.seqNum == maxPos){
+	    pack->isMaxPos = 1;
+	  }
 	}
 	pack->next = NULL;
 	filePos+= size;
@@ -261,8 +270,9 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	sentSuccessful(pack->p);
 	//break; //will remove just for testing 
 
-	pack->timeout.tv_sec = 1; //timeout in 1 s
-	pack->timeout.tv_usec = 0;
+	//pack->timeout.tv_sec = 1; //timeout in 1 s
+	//pack->timeout.tv_usec = 0;
+	pack->startTime = clock(); 
       }
     }
     if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
@@ -270,22 +280,35 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	if (incoming.type == 1){ //RECEIVE ACK
 	  int packetNumber = (incoming.seqNum / PACKET_SIZE)+1;
 	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
-	  if(1 == 1){
-	    //if (incomingPackage->isMinPos = 1){
+	  //printf("incoming seq num: %d\n",incoming.seqNum);
+	  //if(1 == 1){
+	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
 	    packetsSent++;
-	    packetsSentTemp--;
+	    packetsSentTemp--; //decrement so can shift window
 	    front->acked = 1;
-	    //front->next->isMinPos = 1; //check if even have next
-	    //delete package
-	    //delete(front);
-	    //front = front->next;
-	    //need to reset maxPos;
+	    struct package *point = front;
+	    if (front->next != NULL){ //if have following packets 
+	      front->next->isMinPos = 1;
+	      front = front->next;
+	    }
+	    free(point); //remove acked package 
+	    minPos = front->p.seqNum; //shift window
+	    maxPos = maxPos + PACKET_SIZE; 
 	  }
 	  else{
 	    packetsSent++;
-	    //find corresponding packed and set ack = 1
+	    struct package *point = front;
+	    if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
+	      point->acked = 1;
+	    }
 	  }
 	}
+    }
+
+    if (1 == 1){ // change
+      clock_t diff= clock() - front->startTime;
+      int msec = diff *1000/CLOCKS_PER_SEC;
+      printf("elapsed: %d s %d ms\n",msec/1000,msec%1000);
     }
     //else{
       //something timed out?

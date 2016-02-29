@@ -15,7 +15,8 @@ struct package{
   int acked; // 0 if false, 1 if true
   int isMinPos;
   int isMaxPos;
-  struct timeval timeout;
+  //struct timeval timeout;
+  clock_t startTime;
   struct package* next;
 
   
