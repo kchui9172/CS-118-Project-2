@@ -57,21 +57,20 @@ int main(int argc, char **argv) {
     hostname = argv[1];
     portno = atoi(argv[2]);
     filename = argv[3];
-    //double prob_corrupt = atof(argv[4]);
-    //double prob_loss = atof(argv[5]);
-	double prob_corrupt = 0.5;
-	double prob_loss = 0.5;
+    double prob_corrupt = atof(argv[4]);
+    double prob_loss = atof(argv[5]);
+    //double prob_corrupt = 0.5;
+    //double prob_loss = 0.5;
 
     if (portno < 0)
     {		
     	error("Error: Port number must be positive");
     }	
-    if(corrupt > 1 || corrupt < 0 || loss < 0 || loss > 1)
+    if(prob_corrupt > 1 || prob_corrupt < 0 || prob_loss < 0 || prob_loss > 1)
     {
     	error("Error: Invalid probabilities for corruption and loss");
     }	
 
-    printf("hello\n");
     /* socket: create the socket */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0)
@@ -86,25 +85,21 @@ int main(int argc, char **argv) {
         fprintf(stderr,"ERROR, no such host as %s\n", hostname);
         exit(1);
     }
-    printf("its me\n");
+
     /* build the server's Internet address */
     bzero((char *) &serveraddr, sizeof(serveraddr));
     serveraddr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
     serverlen = sizeof(serveraddr);
-    printf("i was wondering\n");
 
     //packet is being requested
     bzero(&p_out, sizeof(p_out));
     p_out.type = 0;
     p_out.seqNum = 0;
     p_out.size = strlen(filename);
-    printf("if after all this time\n");
     strcpy(p_out.data,filename)+1;
     //memcpy(p_out.data,filename,p_out.size);
-
-
 
     //send request message to server
     printf("CLIENT: Sending request for file: %s\n", p_out.data);
@@ -138,10 +133,11 @@ int main(int argc, char **argv) {
 		{
 			error("ERROR in recvFrom");
 		}	
-		//now check for packet loss or corruption
-		else
+		//now check for packet loss or corruption - COMMENTED OUT FOR 
+		//TESTING
+		/*else
 		{
-			if (corrupt_loss_simulation(prob_corrupt)) //means corrupted packet
+		  if (corrupt_loss_simulation(prob_corrupt)) //means corrupted packet
 			{
 				printf("CLIENT: Packet Corrupted: seqNum: %d\n", p_in.seqNum);
 				continue;
@@ -153,8 +149,8 @@ int main(int argc, char **argv) {
 					printf("CLIENT: Packet Lost: seqNum: %d\n", p_in.seqNum);
 					continue;
 				}
-			}
-		}
+				}
+		}*/
 		if(p_in.type == 2) //means final packet to acknowledge a close
 		{
 			printf("CLIENT: Received FIN packet");
@@ -174,6 +170,7 @@ int main(int argc, char **argv) {
 			else //means no data in packet
 			{
 				printf("CLIENT: Received non-data packet: seq # = %d\n", p_in.seqNum);
+	  
                 continue;
 			}
 		}

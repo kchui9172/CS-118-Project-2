@@ -1,6 +1,6 @@
 //packet
 #include <time.h>
-#define PACKET_SIZE 1024
+#define PACKET_SIZE 40 //should by 1024
 
 struct packet{
   int type;  //0 = request, 1 = ACK, 2 = FIN, 3 = data
@@ -11,7 +11,7 @@ struct packet{
 
 
 struct package{
-  struct packet* p; //packet being sent
+  struct packet p; //packet being sent
   int acked; // 0 if false, 1 if true
   int isMinPos;
   int isMaxPos;
