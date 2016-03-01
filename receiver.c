@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
     p_out.type = 0;
     p_out.seqNum = 0;
     p_out.size = strlen(filename);
-    strcpy(p_out.data,filename)+1;
+    strcpy(p_out.data,filename); //+1
     //memcpy(p_out.data,filename,p_out.size);
 
     //send request message to server
@@ -158,14 +158,17 @@ int main(int argc, char **argv) {
 		}
 		else //no packet loss or corruption
 		{
-			printf("type: %d\n",p_in.type);
+		  //printf("type: %d\n",p_in.type);
 			if(p_in.type == 3) //means this is a data packet
 			{
 				printf("CLIENT:Received data packet\n");
-				printf("Received Packet (type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
+				printf("Received Packet #%d\n",((p_in.seqNum/PACKET_SIZE)+1));
+				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
 				//printf("message: %s\n",p_in.data);
-				p_out.seqNum = current_seqNum;
-				current_seqNum++;
+				p_out.seqNum = p_in.seqNum + p_in.size;
+				//p_out.seqNum = current_seqNum+PACKET_SIZE;
+				//current_seqNum+=p_in.size;
+				//write data to file
 			}
 			else //means no data in packet
 			{
@@ -181,7 +184,8 @@ int main(int argc, char **argv) {
 		{
 			error("ERROR sending ACK packet");
 		}	
-		printf("CLIENT: sent ACK Packet (type: %d, seq: %d, size: %d)\n", p_out.type, p_out.seqNum, p_out.size);
+		int packetNumber = (p_in.seqNum/PACKET_SIZE)+1;
+		printf("CLIENT: sent ACK Packet #%d (type: %d, seq: %d, size: %d)\n", packetNumber,p_out.type, p_out.seqNum, p_out.size);
 		
 	}
        

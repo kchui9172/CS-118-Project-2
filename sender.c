@@ -199,7 +199,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   int maxPos = PACKET_SIZE * (windowSize-1);
   int sequenceNum = 0;
   int filePos = 0; //track where in file sent so far
-  int size; //size of packet
+  //int size; //size of packet
   char temp[PACKET_SIZE];
   struct package *front;
   //front = (struct package*) malloc(sizeof(struct package) * windowSize);
@@ -216,6 +216,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
     
     if (packetsSent == totalNumPackets){ //no more packets to send
       printf("Done sending all packets!\n");
+      //send FIN packet
       break;
     }
     if (packetsSentTemp < windowSize){       //send packet
@@ -223,21 +224,27 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       //printf("Sending a packet!\n");
       if (filePos < fileSize){
 	//printf("inside send\n");
-	size= PACKET_SIZE;
+	int packSize= PACKET_SIZE;
 	if (fileSize - filePos < PACKET_SIZE){
-	  size = fileSize - filePos;
+	  packSize = fileSize - filePos;
 	}
-	//printf("size: %d\n",size);
-	bzero(temp,size);
-	memcpy(temp, buffer+filePos,size);
+	printf("first size: %d\n",packSize);
+	bzero(temp,packSize);
+	printf("second size: %d\n",packSize);
+	memcpy(temp, buffer+filePos,packSize);
+	printf("third size: %d\n",packSize);
+	int x = packSize;
 
+	printf("x= %d\n",x);
+	outgoing->size = x;
 	outgoing->type = 3;
 	outgoing->seqNum = sequenceNum;
-	outgoing->size = size;
 	strcpy(outgoing->data,temp);
+	printf("outgoing size= %d\n",outgoing->size);
 	
 	struct package* pack = (struct package *)malloc(sizeof(struct package));
 	pack->p = *outgoing;
+	printf ("size: %d\n",pack->p.size);
 	free(outgoing);
 	printf("packet type: %d\n",pack->p.type);
 	printf("packet seq num: %d\n",pack->p.seqNum);
@@ -262,8 +269,8 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	  }
 	}
 	pack->next = NULL;
-	filePos+= size;
-	sequenceNum+=size; 
+	filePos+= packSize;
+	sequenceNum+=packSize; 
 	packetsSentTemp++;
 	sendto(socketfd, &pack->p,sizeof(pack->p),0,(struct sockaddr *) 
 	       &clientAddress,clientLen);
@@ -278,7 +285,8 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
     if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
 		 &clientAddress, &clientLen) >=0){ 
 	if (incoming.type == 1){ //RECEIVE ACK
-	  int packetNumber = (incoming.seqNum / PACKET_SIZE)+1;
+	  int packetNumber = (incoming.seqNum / PACKET_SIZE) -1;
+	  printf("incoming seqNum: %d\n",incoming.seqNum);
 	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
 	  //printf("incoming seq num: %d\n",incoming.seqNum);
 	  //if(1 == 1){
