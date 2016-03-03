@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
 		}*/
 		if(p_in.type == 2) //means final packet to acknowledge a close
 		{
-			printf("CLIENT: Received FIN packet");
+			printf("CLIENT: Received FIN packet\n");
 			break;
 		}
 		else //no packet loss or corruption
@@ -164,7 +164,9 @@ int main(int argc, char **argv) {
 				printf("CLIENT:Received data packet\n");
 				printf("Received Packet #%d\n",((p_in.seqNum/PACKET_SIZE)+1));
 				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
-				//printf("message: %s\n",p_in.data);
+				fwrite(p_in.data,1,p_in.size,file);
+				printf("message: %s\n",p_in.data);
+				//fclose(file);
 				p_out.seqNum = p_in.seqNum + p_in.size;
 				//p_out.seqNum = current_seqNum+PACKET_SIZE;
 				//current_seqNum+=p_in.size;

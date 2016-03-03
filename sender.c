@@ -7,12 +7,13 @@
 #include <arpa/inet.h>
 #include "packet.c"
 
+
 //sample call: sender <portNum> CWnd Pl Pc
 
 //Helper Functions:
-void printPacket(struct packet toPrint);
 void sendData(int socketfd, struct sockaddr_in clientAddress, 
 	      socklen_t clientLen,int windowSize,struct packet incoming);
+void printPacket(struct packet toPrint);
 struct fileInfo readFile(char* fName,int socketfd, struct sockaddr_in 
 			 clientAddress, socklen_t clientLen);
 void sendFIN(int socketfd, struct sockaddr_in clientAddress, socklen_t clientLen);
@@ -80,7 +81,6 @@ int main(int argc, char *argv[]){
       continue;
     }
     printf("\nReceived a packet!\n");
-    //here print packet
     printPacket(incoming);
 
     //Incoming packet is request
@@ -98,6 +98,151 @@ int main(int argc, char *argv[]){
   return 0;
 }
 
+
+void sendData(int socketfd, struct sockaddr_in clientAddress, 
+	      socklen_t clientLen,int windowSize,struct packet incoming){
+  //struct packet outgoing;
+  char* fileName;
+  fileName= incoming.data;
+  printf("\nRequested file: %s\n",fileName);
+  struct fileInfo info = readFile(fileName, socketfd,clientAddress,clientLen);
+  int fileSize = info.size;
+  char* buffer = info.buffer;
+  
+  //divide file into packets of max size 1000 bytes
+  int totalNumPackets = fileSize/PACKET_SIZE; 
+  if (fileSize % PACKET_SIZE > 0){
+    totalNumPackets++; //because need one more packet for extra data
+  }
+
+  //Variables to keep track of how much of file sent
+  int packetsSent=0;
+  int packetsSentTemp = 0; //packets sent but not yet ACKed
+  int minPos = 0;
+  int maxPos = PACKET_SIZE * (windowSize-1);
+  int sequenceNum = 0;
+  int filePos = 0; //track where in file sent so far
+  //int size; //size of packet
+  char temp[PACKET_SIZE];
+  struct package *front;
+  //front = (struct package*) malloc(sizeof(struct package) * windowSize);
+  front = NULL;
+
+  printf("File size = %d\n",fileSize);
+  printf("Total Number of Packets To Send = %d\n",totalNumPackets);
+
+  while (1){
+    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+    printf("Packets To Send: %d\n",totalNumPackets);
+    printf("Sent: %d\n",packetsSent);
+    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+    
+    if (packetsSent == totalNumPackets){ //no more packets to send
+      printf("Done sending all packets!\n");
+      //send FIN packet
+      struct packet last;
+      last.type = 2;
+      last.size = 0;
+      sendto(socketfd, &last,sizeof(last),0,(struct sockaddr *) 
+	       &clientAddress,clientLen);      
+      break;
+    }
+    if (packetsSentTemp < windowSize){       //send packet
+      struct packet *outgoing = (struct packet *)malloc(sizeof(struct packet));
+      if (filePos < fileSize){
+	int packSize= PACKET_SIZE;
+	if (fileSize - filePos < PACKET_SIZE){
+	  packSize = fileSize - filePos;
+	}
+	bzero(temp,packSize);
+	memcpy(temp, buffer+filePos,packSize);
+
+	outgoing->type = 3;
+	outgoing->seqNum = sequenceNum;
+	strcpy(outgoing->data,temp);
+	
+	struct package* pack = (struct package *)malloc(sizeof(struct package));
+	pack->p = *outgoing;
+	pack->p.size = packSize;
+	//printf ("size: %d\n",pack->p.size);
+	free(outgoing);
+	//printf("packet type: %d\n",pack->p.type);
+	//printf("packet seq num: %d\n",pack->p.seqNum);
+
+	if (front == NULL){ //first packet in window
+	  printf("first packet evaaa\n");
+	  pack->isMinPos = 1;
+	  pack->isMaxPos = 0;
+	  front = pack;
+	}
+	else{
+	  pack->isMinPos =0;
+	  //loop until next == NULL
+	  struct package *point;
+	  point = front;
+	  while (point->next != NULL){
+	    point = point->next;
+	  }
+	  point->next = pack;
+	  if (pack->p.seqNum == maxPos){
+	    pack->isMaxPos = 1;
+	  }
+	}
+	pack->next = NULL;
+	filePos+= packSize;
+	sequenceNum+=packSize; 
+	packetsSentTemp++;
+	sendto(socketfd, &pack->p,sizeof(pack->p),0,(struct sockaddr *) 
+	       &clientAddress,clientLen);
+	sentSuccessful(pack->p);
+	//break; //will remove just for testing 
+
+	//pack->timeout.tv_sec = 1; //timeout in 1 s
+	//pack->timeout.tv_usec = 0;
+	pack->startTime = clock(); 
+      }
+    }
+    if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
+		 &clientAddress, &clientLen) >=0){ 
+	if (incoming.type == 1){ //RECEIVE ACK
+	  int packetNumber = (incoming.seqNum / PACKET_SIZE);
+	  //printf("incoming seqNum: %d\n",incoming.seqNum);
+	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
+	  //if(1 == 1){
+	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
+	    //printf("front acked\n");
+	    packetsSent++;
+	    packetsSentTemp--; //decrement so can shift window
+	    front->acked = 1;
+	    struct package *point = front;
+	    if (front->next != NULL){ //if have following packets 
+	      front->next->isMinPos = 1;
+	      front = front->next;
+	    }
+	    free(point); //remove acked package 
+	    minPos = front->p.seqNum; //shift window
+	    maxPos = maxPos + PACKET_SIZE; 
+	  }
+	  else{
+	    packetsSent++;
+	    struct package *point = front;
+	    if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
+	      point->acked = 1;
+	    }
+	  }
+	}
+    }
+
+    if (1 == 1){ // change- something timed out, resend something
+      clock_t diff= clock() - front->startTime;
+      int msec = diff *1000/CLOCKS_PER_SEC;
+      printf("elapsed: %d s %d ms\n",msec/1000,msec%1000);
+    }
+  }
+}
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~HELPER FUNCTIONS~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 void printPacket(struct packet toPrint){
   printf("\nPacket Seq Num: %d\n",toPrint.seqNum);
   char* packType;
@@ -149,6 +294,7 @@ struct fileInfo readFile(char* fName,int socketfd, struct sockaddr_in
     exit(1);
   }
   fclose(fp);
+  buffer[sourceSize] ='\0';
   f.size = sourceSize;
   f.buffer = buffer;
   return f;
@@ -174,154 +320,4 @@ void sentSuccessful(struct packet p){
     printf("Packet type: data\n");
   }
   printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
-}
-
-void sendData(int socketfd, struct sockaddr_in clientAddress, 
-	      socklen_t clientLen,int windowSize,struct packet incoming){
-  //struct packet outgoing;
-  char* fileName;
-  fileName= incoming.data;
-  printf("Requested file: %s\n",fileName);
-  struct fileInfo info = readFile(fileName, socketfd,clientAddress,clientLen);
-  int fileSize = info.size;
-  char* buffer = info.buffer;
-  
-  //divide file into packets of max size 1000 bytes
-  int totalNumPackets = fileSize/PACKET_SIZE; 
-  if (fileSize % PACKET_SIZE > 0){
-    totalNumPackets++; //because need one more packet for extra data
-  }
-
-  //Variables to keep track of how much of file sent
-  int packetsSent=0;
-  int packetsSentTemp = 0; //packets sent but not yet ACKed
-  int minPos = 0;
-  int maxPos = PACKET_SIZE * (windowSize-1);
-  int sequenceNum = 0;
-  int filePos = 0; //track where in file sent so far
-  //int size; //size of packet
-  char temp[PACKET_SIZE];
-  struct package *front;
-  //front = (struct package*) malloc(sizeof(struct package) * windowSize);
-  front = NULL;
-
-  printf("\nFile size =%d\n",fileSize);
-  printf("\ntotalNumPackets =%d\n",totalNumPackets);
-
-  while (1){
-    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
-    printf("Packets To Send: %d\n",totalNumPackets);
-    printf("Sent: %d\n",packetsSent);
-    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
-    
-    if (packetsSent == totalNumPackets){ //no more packets to send
-      printf("Done sending all packets!\n");
-      //send FIN packet
-      break;
-    }
-    if (packetsSentTemp < windowSize){       //send packet
-      struct packet *outgoing = (struct packet *)malloc(sizeof(struct packet));
-      //printf("Sending a packet!\n");
-      if (filePos < fileSize){
-	//printf("inside send\n");
-	int packSize= PACKET_SIZE;
-	if (fileSize - filePos < PACKET_SIZE){
-	  packSize = fileSize - filePos;
-	}
-	printf("first size: %d\n",packSize);
-	bzero(temp,packSize);
-	printf("second size: %d\n",packSize);
-	memcpy(temp, buffer+filePos,packSize);
-	printf("third size: %d\n",packSize);
-	int x = packSize;
-
-	printf("x= %d\n",x);
-	outgoing->size = x;
-	outgoing->type = 3;
-	outgoing->seqNum = sequenceNum;
-	strcpy(outgoing->data,temp);
-	printf("outgoing size= %d\n",outgoing->size);
-	
-	struct package* pack = (struct package *)malloc(sizeof(struct package));
-	pack->p = *outgoing;
-	printf ("size: %d\n",pack->p.size);
-	free(outgoing);
-	printf("packet type: %d\n",pack->p.type);
-	printf("packet seq num: %d\n",pack->p.seqNum);
-
-	if (front == NULL){ //first packet in window
-	  printf("first packet evaaa\n");
-	  pack->isMinPos = 1;
-	  pack->isMaxPos = 0;
-	  front = pack;
-	}
-	else{
-	  pack->isMinPos =0;
-	  //loop until next == NULL
-	  struct package *point;
-	  point = front;
-	  while (point->next != NULL){
-	    point = point->next;
-	  }
-	  point->next = pack;
-	  if (pack->p.seqNum == maxPos){
-	    pack->isMaxPos = 1;
-	  }
-	}
-	pack->next = NULL;
-	filePos+= packSize;
-	sequenceNum+=packSize; 
-	packetsSentTemp++;
-	sendto(socketfd, &pack->p,sizeof(pack->p),0,(struct sockaddr *) 
-	       &clientAddress,clientLen);
-	sentSuccessful(pack->p);
-	//break; //will remove just for testing 
-
-	//pack->timeout.tv_sec = 1; //timeout in 1 s
-	//pack->timeout.tv_usec = 0;
-	pack->startTime = clock(); 
-      }
-    }
-    if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
-		 &clientAddress, &clientLen) >=0){ 
-	if (incoming.type == 1){ //RECEIVE ACK
-	  int packetNumber = (incoming.seqNum / PACKET_SIZE) -1;
-	  printf("incoming seqNum: %d\n",incoming.seqNum);
-	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
-	  //printf("incoming seq num: %d\n",incoming.seqNum);
-	  //if(1 == 1){
-	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
-	    packetsSent++;
-	    packetsSentTemp--; //decrement so can shift window
-	    front->acked = 1;
-	    struct package *point = front;
-	    if (front->next != NULL){ //if have following packets 
-	      front->next->isMinPos = 1;
-	      front = front->next;
-	    }
-	    free(point); //remove acked package 
-	    minPos = front->p.seqNum; //shift window
-	    maxPos = maxPos + PACKET_SIZE; 
-	  }
-	  else{
-	    packetsSent++;
-	    struct package *point = front;
-	    if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
-	      point->acked = 1;
-	    }
-	  }
-	}
-    }
-
-    if (1 == 1){ // change
-      clock_t diff= clock() - front->startTime;
-      int msec = diff *1000/CLOCKS_PER_SEC;
-      printf("elapsed: %d s %d ms\n",msec/1000,msec%1000);
-    }
-    //else{
-      //something timed out?
-      //resend something
-    //}
-    
-  }
 }
