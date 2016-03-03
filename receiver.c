@@ -161,17 +161,16 @@ int main(int argc, char **argv) {
 		  //printf("type: %d\n",p_in.type);
 			if(p_in.type == 3) //means this is a data packet
 			{
-				int packetNumber = (p_in.seqNum/PACKET_SIZE)+1;
 				printf("CLIENT:Received data packet\n");
-				printf("Received Packet #%d\n", packetNumber;
+				printf("Received Packet #%d\n",((p_in.seqNum/PACKET_SIZE)+1));
 				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
-
 				fwrite(p_in.data,1,p_in.size,file);
 				printf("message: %s\n",p_in.data);
 				//fclose(file);
 				p_out.seqNum = p_in.seqNum + p_in.size;
 				//p_out.seqNum = current_seqNum+PACKET_SIZE;
 				//current_seqNum+=p_in.size;
+				//write data to file
 			}
 			else //means no data in packet
 			{
