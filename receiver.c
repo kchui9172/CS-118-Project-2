@@ -29,10 +29,12 @@ int corrupt_loss_simulation(double probability)
 	double corrupt_or_loss = rand() / (double) RAND_MAX;
 	if (corrupt_or_loss < probability)
 	{
+	  printf("corruption\n");
 		return 1;
 	}
 	else
 	{
+	  printf("no corruption\n");
 		return 0;
 	}
 }
@@ -98,6 +100,7 @@ int main(int argc, char **argv) {
     p_out.type = 0;
     p_out.seqNum = 0;
     p_out.size = strlen(filename);
+    //printf("sizeeee: %d\n",p_out.size);
     strcpy(p_out.data,filename); //+1
     //memcpy(p_out.data,filename,p_out.size);
 
@@ -133,9 +136,8 @@ int main(int argc, char **argv) {
 		{
 			error("ERROR in recvFrom");
 		}	
-		//now check for packet loss or corruption - COMMENTED OUT FOR 
-		//TESTING
-		/*else
+		//now check for packet loss or corruption
+		else
 		{
 		  if (corrupt_loss_simulation(prob_corrupt)) //means corrupted packet
 			{
@@ -149,8 +151,9 @@ int main(int argc, char **argv) {
 					printf("CLIENT: Packet Lost: seqNum: %d\n", p_in.seqNum);
 					continue;
 				}
-				}
-		}*/
+			}
+		}
+
 		if(p_in.type == 2) //means final packet to acknowledge a close
 		{
 			printf("CLIENT: Received FIN packet\n");
@@ -164,9 +167,9 @@ int main(int argc, char **argv) {
 				printf("CLIENT:Received data packet\n");
 				printf("Received Packet #%d\n",((p_in.seqNum/PACKET_SIZE)+1));
 				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
-				fwrite(p_in.data,1,p_in.size,file);
-				printf("message: %s\n",p_in.data);
-				//fclose(file);
+				fwrite(p_in.data,1,p_in.size,file); //will be conditional
+			 	                                    //depends on if in order
+				//printf("message: %s\n",p_in.data);
 				p_out.seqNum = p_in.seqNum + p_in.size;
 				//p_out.seqNum = current_seqNum+PACKET_SIZE;
 				//current_seqNum+=p_in.size;

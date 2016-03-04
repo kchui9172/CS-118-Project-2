@@ -158,16 +158,19 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	memcpy(temp, buffer+filePos,packSize);
 
 	outgoing->type = 3;
+	//printf("inner seqNum= %d\n",sequenceNum);
 	outgoing->seqNum = sequenceNum;
+	//printf("outgoing seqNum =%d\n",outgoing->seqNum);
 	strcpy(outgoing->data,temp);
 	
 	struct package* pack = (struct package *)malloc(sizeof(struct package));
 	pack->p = *outgoing;
 	pack->p.size = packSize;
+	pack->p.seqNum = sequenceNum;
 	//printf ("size: %d\n",pack->p.size);
 	free(outgoing);
-	//printf("packet type: %d\n",pack->p.type);
-	//printf("packet seq num: %d\n",pack->p.seqNum);
+	printf("packet type: %d\n",pack->p.type);
+	printf("packet seq num: %d\n",pack->p.seqNum);
 
 	if (front == NULL){ //first packet in window
 	  printf("first packet evaaa\n");
@@ -195,15 +198,42 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	sendto(socketfd, &pack->p,sizeof(pack->p),0,(struct sockaddr *) 
 	       &clientAddress,clientLen);
 	sentSuccessful(pack->p);
-	//break; //will remove just for testing 
 
 	//pack->timeout.tv_sec = 1; //timeout in 1 s
 	//pack->timeout.tv_usec = 0;
 	pack->startTime = clock(); 
       }
     }
+    printf("window size = %d\n",windowSize);
+    fd_set fileSet;
+    FD_ZERO(&fileSet);
+    FD_SET(socketfd,&fileSet);
+    struct timeval tOut;
+    tOut.tv_sec = 1;
+    tOut.tv_usec = 0;
+    int received;
+    received = select(socketfd+1,&fileSet,NULL,NULL,&tOut);
+
+    printf("received: %d\n",received);
+    if ( received < 1){ //if timed out
+      printf("TIMEOUT!\n");
+      struct package *tP = front;
+      while (tp != NULL){
+	//check if any packets have timed out
+	clock_t diff= clock() - front->startTime;
+	int msec = diff *1000/CLOCKS_PER_SEC;
+	printf("elapsed: %d s %d ms\n",msec/1000,msec%1000);
+	if ( msec/1000 > tOut.tv_sec || msec/1000 == tOut.tv_Sec && msec%1000 >tOut.tv_usec){
+	  printf("this packet timed out\n");
+	}
+      }
+
+      continue;
+    }
+    
     if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
 		 &clientAddress, &clientLen) >=0){ 
+      printf("anything\n");
 	if (incoming.type == 1){ //RECEIVE ACK
 	  int packetNumber = (incoming.seqNum / PACKET_SIZE);
 	  //printf("incoming seqNum: %d\n",incoming.seqNum);
@@ -231,12 +261,6 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	    }
 	  }
 	}
-    }
-
-    if (1 == 1){ // change- something timed out, resend something
-      clock_t diff= clock() - front->startTime;
-      int msec = diff *1000/CLOCKS_PER_SEC;
-      printf("elapsed: %d s %d ms\n",msec/1000,msec%1000);
     }
   }
 }
