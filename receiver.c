@@ -120,6 +120,11 @@ int main(int argc, char **argv) {
 	p_out.seqNum = current_seqNum;
 	p_out.size = 0;
 	
+	//Packet ACK recv buffer with size 30 (30 is max seqNum we will have)
+	packet ackRecvPacketsBuffer[30];
+	int packetIndex = 0;
+	packet *currentLookUp = &ackRecvPackets[0];
+	
 	char n_filename[FILENAMESIZE];
 	strcpy(n_filename, "tn_");
 	strcat(n_filename, filename);
@@ -167,8 +172,44 @@ int main(int argc, char **argv) {
 				printf("CLIENT:Received data packet\n");
 				printf("Received Packet #%d\n",((p_in.seqNum/PACKET_SIZE)+1));
 				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
-				fwrite(p_in.data,1,p_in.size,file); //will be conditional
+				
+				//storing the packet in correct index of buffer
+				packetIndex = p_in.seqNum;
+				if (packetIndex > 30)
+				{
+					error("ERROR in seqNum. Greater than max size");	
+				}
+				//store the current packet we recieved in the recieve buffer
+				ackRecvPacketsBuffer[packetIndex] = p_in;
+				
+				//write packet data to file if in correct order
+				//make sure the seqNum we currently on is the same as the seqNum in the buffer index we are looking at
+				//if not we have out of order packet
+				if(*currentLookUp != NULL && current_seqNum == *currentLookUp.seqNum )
+				{
+					fwrite(currentLookUp.data,1,currentLookUp.size,file); //will be conditional
 			 	                                    //depends on if in order
+					currentLookUp++; //increment the pointer of the buffer to the next element
+					current_seqNum++; //incrment our current seqNum we should be expecting to write to file
+					
+					if(current_seqNum > 30) //reset buffer when full
+					{
+						currentLookUp = &ackRecvPacketsBuffer[0] ;
+						current_seqNum = 0;
+						for (int i = 0; i < 30; i++)
+						{
+							ackRecvPacketsBuffer[i] = NULL;
+						}
+					}
+					
+				}
+				else //out of order packet
+				{
+					printf("Packet with seq: %d out of order buffered in bufferArray", p_in.seqNum);
+					printf("Expected Packet with seq: %d to be written to the file next. Will wait to write to file until correct packet comes in", current_seqNum);
+				}
+				
+				
 				//printf("message: %s\n",p_in.data);
 				p_out.seqNum = p_in.seqNum + p_in.size;
 				//p_out.seqNum = current_seqNum+PACKET_SIZE;
