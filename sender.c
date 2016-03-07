@@ -11,14 +11,14 @@
 //sample call: sender <portNum> CWnd Pl Pc
 
 //Helper Functions:
- void sendData(int socketfd, struct sockaddr_in clientAddress, 
+void sendData(int socketfd, struct sockaddr_in clientAddress, 
 	       socklen_t clientLen,int windowSize,struct packet incoming);
- void printPacket(struct packet toprint);
- struct fileInfo readFile(char* fname,int socketfd, struct sockaddr_in 
+void printPacket(struct packet toprint);
+struct fileInfo readFile(char* fname,int socketfd, struct sockaddr_in 
 			  clientaddress, socklen_t clientlen);
- void sendFIN(int socketfd, struct sockaddr_in clientaddress, socklen_t clientlen);
- void sentSuccessful(struct packet p);
- void retransmitSuccessful(struct packet p);
+void sendFIN(int socketfd, struct sockaddr_in clientaddress, socklen_t clientlen);
+void sentSuccessful(struct packet p, int timesRepeated, int maxPackest);
+void retransmitSuccessful(struct packet p);
 
  struct fileInfo{
    char* buffer;
@@ -39,12 +39,17 @@ int main(int argc, char *argv[]){
 
   //make sure probabilities are valid
   if (lossprob <0 || lossprob > 1 || corrprob < 0 || corrprob >1){
-    fprintf(stderr,"incorrect values for lossprob and corrprob: must be btwn 0-1\n");
+    fprintf(stderr,"Incorrect values for lossprob and corrprob: must be btwn 0-1\n");
     exit(1);
   }
 
   if (windowSize < 1){
-    fprintf(stderr,"window size must be at least 1\n");
+    fprintf(stderr,"Window size must be at least 1\n");
+    exit(1);
+  }
+
+  if (windowSize/PACKET_SIZE <= 0){
+    fprintf(stderr,"Window size too small, can't send any packets\n");
     exit(1);
   }
 
@@ -54,7 +59,7 @@ int main(int argc, char *argv[]){
   socklen_t clientLen;
   struct packet incoming;
 
-  //sock_dgram = udp
+  //SOCK_DGRAM = UDP
   socketfd = socket(AF_INET, SOCK_DGRAM,0);
   if (socketfd < 0){
     error("error when creating socket\n");
@@ -70,7 +75,7 @@ int main(int argc, char *argv[]){
   }
 
   //wait for receiver to send message
-  printf("waiting for connection...\n");
+  printf("Waiting for connection...\n");
 
   while(1){
     clientLen = sizeof(clientAddress);
@@ -81,7 +86,7 @@ int main(int argc, char *argv[]){
       printf("no packet received\n");
       continue;
     }
-    printf("\nreceived a packet!\n");
+    printf("\nReceived a packet!\n");
     printPacket(incoming);
 
     //incoming packet is request
@@ -91,7 +96,7 @@ int main(int argc, char *argv[]){
     }
     if (incoming.type == 2){
       //end of transaction
-      printf("\nending connection\n");
+      printf("\nEnding connection\n");
       break;
     }  
   }
@@ -105,12 +110,12 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   //struct packet outgoing;
   char* filename;
   filename= incoming.data;
-  printf("\nrequested file: %s\n",filename);
+  printf("\nRequested file: %s\n",filename);
   struct fileInfo info = readFile(filename, socketfd,clientAddress,clientLen);
   int fileSize = info.size;
   char* buffer = info.buffer;
   
-  //divide file into packets of max size 1000 bytes
+  //divide file into packets of max size 1024 bytes
   int totalNumPackets = fileSize/PACKET_SIZE; 
   if (fileSize % PACKET_SIZE > 0){
     totalNumPackets++; //because need one more packet for extra data
@@ -122,21 +127,21 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   int minPos = 0;
   int maxPos = PACKET_SIZE * (windowSize-1);
   int sequenceNum = 0;
+  int timesRepeated = 0; //number of times reset sequenceNum = 0
+  int maxPackets = SEQNUM_LIM/PACKET_SIZE;
+  printf("max packets: %d\n",maxPackets);
   int filePos = 0; //track where in file sent so far
-  //int size; //size of packet
   char temp[PACKET_SIZE];
   struct package *front;
-  //front = (struct package*) malloc(sizeof(struct package) * windowsize);
   front = NULL;
 
-  printf("file size = %d\n",fileSize);
-  printf("total number of packets to send = %d\n",totalNumPackets);
+  printf("File size = %d\n",fileSize);
 
   while (1){
     printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
-    printf("packets to send: %d\n",totalNumPackets);
-    printf("packets temp sent: %d\n",packetsSentTemp);
-    printf("sent: %d\n",packetsSent);
+    printf("Packets to send: %d\n",totalNumPackets);
+    printf("Packets temp sent: %d\n",packetsSentTemp);
+    printf("Sent: %d\n",packetsSent);
     printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
     
     if (packetsSent == totalNumPackets){ //no more packets to send
@@ -150,7 +155,10 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       break;
     }
 
-    if (packetsSentTemp < windowSize){ //send packet
+    //windowSize in bytes- to find number of packets can send, divide windowSize by packet size
+    int packetWindowSize = windowSize / PACKET_SIZE;
+    printf("packetWindowSize= %d\n",packetWindowSize);
+    if (packetsSentTemp < packetWindowSize){ //send packet
       struct packet *outgoing = (struct packet *)malloc(sizeof(struct packet));
       if (filePos < fileSize){ //still stuff left to send in file
 	int packSize= PACKET_SIZE;
@@ -193,15 +201,21 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	pack->next = NULL;
 	filePos+= packSize;
 	sequenceNum+=packSize; 
+	//if hit sequence number limit, return to 0
+	if (sequenceNum >= SEQNUM_LIM){
+	  sequenceNum = 0;
+	  timesRepeated += 1;
+	  printf("reset!\n");
+	}
+
 	packetsSentTemp++;
 	sendto(socketfd, &pack->p,sizeof(pack->p),0,(struct sockaddr *) //deal with corruption here
 	       &clientAddress,clientLen);
-	sentSuccessful(pack->p);
+	sentSuccessful(pack->p, timesRepeated, maxPackets);
 	gettimeofday(&(pack->startTime),NULL); //set time for packet just sent
       }
     }
 
-    //printf("window size = %d\n",windowSize);
     fd_set fileSet;
     FD_ZERO(&fileSet);
     FD_SET(socketfd,&fileSet);
@@ -265,9 +279,11 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       }
       if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
 		   &clientAddress, &clientLen) >=0){ 
-	printf("anything\n");
 	if (incoming.type == 1){ //RECEIVE ACK
-	  int packetNumber = (incoming.seqNum / PACKET_SIZE);
+	  int packetNumber = (incoming.seqNum / PACKET_SIZE) + (timesRepeated*maxPackets);
+	  if (incoming.seqNum % PACKET_SIZE != 0){ //last packet size different
+	    packetNumber+=1;
+	  }
 	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
 	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
 	    packetsSent++;
@@ -286,6 +302,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	    packetsSent++;
 	    struct package *point = front;
 	    if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
+	      printf("here?\n");
 	      point->acked = 1;
 	    }
 	  }
@@ -426,9 +443,10 @@ void sendFIN(int socketfd, struct sockaddr_in clientAddress, socklen_t clientLen
   }
 }
 
-void sentSuccessful(struct packet p){
+void sentSuccessful(struct packet p, int timesRepeated,int maxPackets){
   printf("~~~~~~~~~~~~~~~~~~~~~~\n");
-  printf("Successfully sent Packet #%d!\n",((p.seqNum /PACKET_SIZE)+1));
+  int packNum = ((p.seqNum/PACKET_SIZE) + 1) + (timesRepeated*maxPackets);
+  printf("Successfully sent Packet #%d!\n",packNum);
   printf("Sequence Number: %d\n",p.seqNum);
   printf("Packet size: %d\n", p.size);
   if (p.type == 3){

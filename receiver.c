@@ -1,7 +1,3 @@
-/* 
- * udpclient.c - A simple UDP client
- * usage: udpclient <host> <port>
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,7 +94,7 @@ int main(int argc, char **argv) {
     p_out.type = 0;
     p_out.seqNum = 0;
     p_out.size = strlen(filename);
-    printf("sizeeee: %d\n",p_out.size);
+    //printf("sizeeee: %d\n",p_out.size);
     strcpy(p_out.data,filename); //+1
     //memcpy(p_out.data,filename,p_out.size);
 
@@ -109,7 +105,8 @@ int main(int argc, char **argv) {
          error("ERROR writing to socket");
 	 //add something to fix if error
     }
-    printf("CLIENT: request for file sent. Waiting for server\n");
+    printf("CLIENT: Request for file sent. Waiting for server\n");
+    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 	
     //ACK response packet
     int current_seqNum = 0;
@@ -159,7 +156,7 @@ int main(int argc, char **argv) {
 
 		if(p_in.type == 2) //means final packet to acknowledge a close
 		{
-			printf("CLIENT: Received FIN packet\n");
+			printf("\nCLIENT: Received FIN packet\n");
 			break;
 		}
 		else //no packet loss or corruption
@@ -167,7 +164,7 @@ int main(int argc, char **argv) {
 		  //printf("type: %d\n",p_in.type);
 			if(p_in.type == 3) //means this is a data packet
 			{
-				printf("CLIENT:Received data packet\n");
+				printf("\nCLIENT: Received data packet\n");
 				printf("Received Packet #%d\n",((p_in.seqNum/PACKET_SIZE)+1));
 				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
 			        fwrite(p_in.data,1,p_in.size,file);
@@ -234,7 +231,7 @@ int main(int argc, char **argv) {
 			error("ERROR sending ACK packet");
 		}	
 		int packetNumber = (p_in.seqNum/PACKET_SIZE)+1;
-		printf("CLIENT: sent ACK Packet #%d (type: %d, seq: %d, size: %d)\n", packetNumber,p_out.type, p_out.seqNum, p_out.size);
+		printf("\nCLIENT: sent ACK Packet #%d (type: %d, seq: %d, size: %d)\n", packetNumber,p_out.type, p_out.seqNum, p_out.size);
 		
 	}
        
@@ -250,7 +247,7 @@ int main(int argc, char **argv) {
 		error("ERROR sending FIN packet");
 	}		
      
-    printf("Closing file, client, and socket\n");
+    printf("\nClosing file, client, and socket\n");
     close(sockfd); //close socket
     fclose(file);
     
