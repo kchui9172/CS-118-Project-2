@@ -135,6 +135,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   while (1){
     printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
     printf("packets to send: %d\n",totalNumPackets);
+    printf("packets temp sent: %d\n",packetsSentTemp);
     printf("sent: %d\n",packetsSent);
     printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
     
@@ -151,9 +152,9 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 
     if (packetsSentTemp < windowSize){ //send packet
       struct packet *outgoing = (struct packet *)malloc(sizeof(struct packet));
-      if (filePos < fileSize){
+      if (filePos < fileSize){ //still stuff left to send in file
 	int packSize= PACKET_SIZE;
-	if (fileSize - filePos < PACKET_SIZE){
+	if (fileSize - filePos < PACKET_SIZE){ //amount left in file less than default packet size
 	  packSize = fileSize - filePos;
 	}
 	bzero(temp,packSize);
@@ -177,29 +178,30 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	}
 	else{
 	  pack->isMinPos =0;
-	  //loop until next == null
+	  //loop until next == NULL and add packet
 	  struct package *point = front;
-	  //point = front;
 	  while (point->next != NULL){
 	    point = point->next;
 	  }
-	  point->next = pack;
+	  point->next = pack; //necessary?
 	  if (pack->p.seqNum == maxPos){
 	    pack->isMaxPos = 1;
 	  }
 	}
+
+	//increment values: seqNum, position in file, packets sent (w/o ACKs) for next iteration
 	pack->next = NULL;
 	filePos+= packSize;
 	sequenceNum+=packSize; 
 	packetsSentTemp++;
-	sendto(socketfd, &pack->p,sizeof(pack->p),0,(struct sockaddr *) 
+	sendto(socketfd, &pack->p,sizeof(pack->p),0,(struct sockaddr *) //deal with corruption here
 	       &clientAddress,clientLen);
 	sentSuccessful(pack->p);
-
-	gettimeofday(&(pack->startTime),NULL);
+	gettimeofday(&(pack->startTime),NULL); //set time for packet just sent
       }
     }
-    printf("window size = %d\n",windowSize);
+
+    //printf("window size = %d\n",windowSize);
     fd_set fileSet;
     FD_ZERO(&fileSet);
     FD_SET(socketfd,&fileSet);
@@ -213,8 +215,86 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
     struct timeval curr;
     gettimeofday(&curr,NULL);
     double elapsedTime;
+    double minTimeLeft = tOutD;
+
+    struct package *e = front;
+    struct package *earliest = front;
+    double leftD = 0;
+    int alreadyRetransmitted = 0;
+    while (e != NULL){
+      elapsedTime = (curr.tv_sec - e->startTime.tv_sec)*1000.0;
+      elapsedTime += (curr.tv_usec - e->startTime.tv_usec)/1000.0;
+      double leftD = tOutD - elapsedTime;
+      if (leftD < 0){ //packet timed out, resend
+	printf("already timed out\n");
+	sendto(socketfd,&e->p,sizeof(e->p),0,(struct sockaddr *)
+	       &clientAddress,clientLen);
+	retransmitSuccessful(e->p); //deal with corruption here!
+	//reset timer for earliest
+	gettimeofday(&(e->startTime),NULL); //set time for packet just sent
+	alreadyRetransmitted = 1;
+	break;
+      }
+      if (leftD < minTimeLeft){
+	minTimeLeft = leftD;
+	earliest = e; 
+      }
+      e = e->next;
+    }
+    printf("Time left: %f ms\n",minTimeLeft);
+
+    if (alreadyRetransmitted == 0){ //didn't already retransmit
+      printf("still have time\n");
+      struct timeval left;
+      double tv = (minTimeLeft/1000)*1000000; 
+      //printf("tv: %f\n",tv);
+      left.tv_sec = 0;
+      left.tv_usec = tv;
+
+      printf("ls :%f\n",(double)left.tv_sec);
+      printf("lus : %f\n",(double)left.tv_usec);
+      int received = select(socketfd+1,&fileSet,NULL,NULL,&left);
+      if (received < 1){
+	//retransmit earliest sent packet
+	printf("retransmitting earliest sent packet\n");
+	sendto(socketfd,&earliest->p,sizeof(earliest->p),0,(struct sockaddr *)
+	       &clientAddress,clientLen);
+	retransmitSuccessful(earliest->p); //deal with corruption here!
+	gettimeofday(&(earliest->startTime),NULL); //set time for packet just sent	
+	continue;
+      }
+      if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
+		   &clientAddress, &clientLen) >=0){ 
+	printf("anything\n");
+	if (incoming.type == 1){ //RECEIVE ACK
+	  int packetNumber = (incoming.seqNum / PACKET_SIZE);
+	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
+	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
+	    packetsSent++;
+	    packetsSentTemp--; //decrement so can shift window
+	    front->acked = 1;
+	    struct package *point = front;
+	    if (front->next != NULL){ //if have following packets 
+	      front->next->isMinPos = 1;
+	      front = front->next;
+	    }
+	    free(point); //remove acked package 
+	    minPos = front->p.seqNum; //shift window
+	    maxPos = maxPos + PACKET_SIZE; 
+	  }
+	  else{
+	    packetsSent++;
+	    struct package *point = front;
+	    if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
+	      point->acked = 1;
+	    }
+	  }
+	}
+      }
+    }
+
     //NEED TO CHANGE TO START TIME OF EARLIEST SENT PACKET
-    elapsedTime = (curr.tv_sec - front->startTime.tv_sec)*1000.0;
+    /*elapsedTime = (curr.tv_sec - front->startTime.tv_sec)*1000.0;
     elapsedTime += (curr.tv_usec- front->startTime.tv_usec)/1000.0;
     printf("elapsed time: %f ms\n",elapsedTime);
     double leftD = tOutD - elapsedTime;
@@ -272,7 +352,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	  }
 	}
       }
-    }    
+    }*/
   }
 }
 

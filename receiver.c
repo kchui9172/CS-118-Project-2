@@ -29,12 +29,12 @@ int corrupt_loss_simulation(double probability)
 	double corrupt_or_loss = rand() / (double) RAND_MAX;
 	if (corrupt_or_loss < probability)
 	{
-	  printf("corruption\n");
+	  //printf("corruption\n");
 		return 1;
 	}
 	else
 	{
-	  printf("no corruption\n");
+	  //printf("no corruption\n");
 		return 0;
 	}
 }
@@ -170,9 +170,12 @@ int main(int argc, char **argv) {
 				printf("CLIENT:Received data packet\n");
 				printf("Received Packet #%d\n",((p_in.seqNum/PACKET_SIZE)+1));
 				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
+			        fwrite(p_in.data,1,p_in.size,file);
 				
+				//COMMENTED OUT BUFFER PORTION UNTIL FIXED
+
 				//storing the packet in correct index of buffer
-				packetIndex = p_in.seqNum;
+				/*packetIndex = p_in.seqNum;
 				if (packetIndex > 30)
 				{
 					error("ERROR in seqNum. Greater than max size");	
@@ -201,14 +204,14 @@ int main(int argc, char **argv) {
 						  //bzero(ackRecvPacketsBuffer[i],sizeof(struct packet));
 						//}
 					}
-					
+				
 				}
 				else //out of order packet
 				{
 					printf("Packet with seq: %d out of order buffered in bufferArray", p_in.seqNum);
 					printf("Expected Packet with seq: %d to be written to the file next. Will wait to write to file until correct packet comes in", current_seqNum);
 				}
-				
+				*/
 				
 				//printf("message: %s\n",p_in.data);
 				p_out.seqNum = p_in.seqNum + p_in.size;
