@@ -1,6 +1,7 @@
 //packet
 #include <time.h>
 #define PACKET_SIZE 1024 //should by 1024
+#define MAX_SEQ_NUM 30720 //should be 30Kbytes
 #define TOUT_SEC 1
 #define TOUT_USEC 0
 
