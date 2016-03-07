@@ -111,26 +111,26 @@ int main(int argc, char **argv) {
     }
     printf("CLIENT: request for file sent. Waiting for server\n");
 	
-	//ACK response packet
-	int current_seqNum = 0;
-	bzero(&p_out, sizeof(p_out));
-	p_out.type = 1;
-	p_out.seqNum = current_seqNum;
-	p_out.size = 0;
+    //ACK response packet
+    int current_seqNum = 0;
+    bzero(&p_out, sizeof(p_out));
+    p_out.type = 1;
+    p_out.seqNum = current_seqNum;
+    p_out.size = 0;
 	
-	//Packet ACK recv buffer with size 30 (30 is max seqNum we will have)
-	packet ackRecvPacketsBuffer[30];
-	int packetIndex = 0;
-	packet *currentLookUp = &ackRecvPackets[0];
+    //Packet ACK recv buffer with size 30 (30 is max seqNum we will have)
+    struct packet ackRecvPacketsBuffer[30];
+    int packetIndex = 0;
+    struct packet *currentLookUp = &ackRecvPacketsBuffer[0];
 	
-	char n_filename[FILENAMESIZE];
-	strcpy(n_filename, "tn_");
-	strcat(n_filename, filename);
-	file = fopen(n_filename, "w+");
-	if (file == NULL)
-	{
-		error("Error opening file for writing");
-	}
+    char n_filename[FILENAMESIZE];
+    strcpy(n_filename, "tn_");
+    strcat(n_filename, filename);
+    file = fopen(n_filename, "w+");
+    if (file == NULL)
+    {
+      error("Error opening file for writing");
+    }
 	
 	while(1)
 	{
@@ -183,9 +183,9 @@ int main(int argc, char **argv) {
 				//write packet data to file if in correct order
 				//make sure the seqNum we currently on is the same as the seqNum in the buffer index we are looking at
 				//if not we have out of order packet
-				if(*currentLookUp != NULL && current_seqNum == *currentLookUp.seqNum )
+				if(currentLookUp != NULL && current_seqNum == currentLookUp->seqNum )
 				{
-					fwrite(currentLookUp.data,1,currentLookUp.size,file); //will be conditional
+					fwrite(currentLookUp->data,1,currentLookUp->size,file); //will be conditional
 			 	                                    //depends on if in order
 					currentLookUp++; //increment the pointer of the buffer to the next element
 					current_seqNum++; //incrment our current seqNum we should be expecting to write to file
@@ -194,10 +194,12 @@ int main(int argc, char **argv) {
 					{
 						currentLookUp = &ackRecvPacketsBuffer[0] ;
 						current_seqNum = 0;
-						for (int i = 0; i < 30; i++)
-						{
-							ackRecvPacketsBuffer[i] = NULL;
-						}
+						//int i;
+						//for (i = 0; i < 30; i++)
+						//{
+						  //ackRecvPacketsBuffer[i] = NULL;
+						  //bzero(ackRecvPacketsBuffer[i],sizeof(struct packet));
+						//}
 					}
 					
 				}
