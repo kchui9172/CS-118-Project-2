@@ -61,8 +61,6 @@ int main(int argc, char **argv) {
     filename = argv[3];
     double prob_corrupt = atof(argv[4]);
     double prob_loss = atof(argv[5]);
-    //double prob_corrupt = 0.5;
-    //double prob_loss = 0.5;
 
     if (portno < 0)
     {		
@@ -100,7 +98,7 @@ int main(int argc, char **argv) {
     p_out.type = 0;
     p_out.seqNum = 0;
     p_out.size = strlen(filename);
-    //printf("sizeeee: %d\n",p_out.size);
+    printf("sizeeee: %d\n",p_out.size);
     strcpy(p_out.data,filename); //+1
     //memcpy(p_out.data,filename,p_out.size);
 

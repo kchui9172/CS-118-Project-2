@@ -1,6 +1,8 @@
 //packet
 #include <time.h>
 #define PACKET_SIZE 1024 //should by 1024
+#define TOUT_SEC 1
+#define TOUT_USEC 0
 
 struct packet{
   int type;  //0 = request, 1 = ACK, 2 = FIN, 3 = data
@@ -15,8 +17,7 @@ struct package{
   int acked; // 0 if false, 1 if true
   int isMinPos;
   int isMaxPos;
-  //struct timeval timeout;
-  clock_t startTime;
+  struct timeval startTime;
   struct package* next;
 
   

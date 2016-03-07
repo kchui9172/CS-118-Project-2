@@ -11,86 +11,87 @@
 //sample call: sender <portNum> CWnd Pl Pc
 
 //Helper Functions:
-void sendData(int socketfd, struct sockaddr_in clientAddress, 
-	      socklen_t clientLen,int windowSize,struct packet incoming);
-void printPacket(struct packet toPrint);
-struct fileInfo readFile(char* fName,int socketfd, struct sockaddr_in 
-			 clientAddress, socklen_t clientLen);
-void sendFIN(int socketfd, struct sockaddr_in clientAddress, socklen_t clientLen);
-void sentSuccessful(struct packet p);
+ void sendData(int socketfd, struct sockaddr_in clientAddress, 
+	       socklen_t clientLen,int windowSize,struct packet incoming);
+ void printPacket(struct packet toprint);
+ struct fileInfo readFile(char* fname,int socketfd, struct sockaddr_in 
+			  clientaddress, socklen_t clientlen);
+ void sendFIN(int socketfd, struct sockaddr_in clientaddress, socklen_t clientlen);
+ void sentSuccessful(struct packet p);
+ void retransmitSuccessful(struct packet p);
 
-struct fileInfo{
-  char* buffer;
-  int size;
-};
+ struct fileInfo{
+   char* buffer;
+   int size;
+ };
 
 
 int main(int argc, char *argv[]){  
   if (argc < 5){
-    fprintf(stderr,"Need port number, CWnd, Pl, and Pc\n");
+    fprintf(stderr,"need port number, cwnd, pl, and pc\n");
     exit(1);
   }
   
   //extract parameters
   int windowSize= atoi(argv[2]);
-  double lossProb = atof(argv[3]);
-  double corrProb = atof(argv[4]);
+  double lossprob = atof(argv[3]);
+  double corrprob = atof(argv[4]);
 
   //make sure probabilities are valid
-  if (lossProb <0 || lossProb > 1 || corrProb < 0 || corrProb >1){
-    fprintf(stderr,"Incorrect values for lossProb and corrProb: must be btwn 0-1\n");
+  if (lossprob <0 || lossprob > 1 || corrprob < 0 || corrprob >1){
+    fprintf(stderr,"incorrect values for lossprob and corrprob: must be btwn 0-1\n");
     exit(1);
   }
 
   if (windowSize < 1){
-    fprintf(stderr,"Window size must be at least 1\n");
+    fprintf(stderr,"window size must be at least 1\n");
     exit(1);
   }
 
-  //Variables
-  int socketfd, portNum, newSocketfd;
+  //variables
+  int socketfd, portnum, newsocketfd;
   struct sockaddr_in address,clientAddress;
   socklen_t clientLen;
   struct packet incoming;
 
-  //SOCK_DGRAM = UDP
+  //sock_dgram = udp
   socketfd = socket(AF_INET, SOCK_DGRAM,0);
   if (socketfd < 0){
-    error("Error when creating socket\n");
+    error("error when creating socket\n");
   }
 
   memset((char *) &address, 0, sizeof(address));
-  portNum = atoi(argv[1]);
+  portnum = atoi(argv[1]);
   address.sin_family = AF_INET;
-  address.sin_addr.s_addr = INADDR_ANY;//bind to default IP addr
-  address.sin_port = htons(portNum);
+  address.sin_addr.s_addr = INADDR_ANY;//bind to default ip addr
+  address.sin_port = htons(portnum);
   if(bind(socketfd,(struct sockaddr *) &address, sizeof(address)) < 0){
-    error("Error when binding\n");
+    error("error when binding\n");
   }
 
   //wait for receiver to send message
-  printf("Waiting for connection...\n");
+  printf("waiting for connection...\n");
 
   while(1){
     clientLen = sizeof(clientAddress);
-    //recvfrom = get UDP datagram from receiver
+    //recvfrom = get udp datagram from receiver
     //args = socket fd, packet, size of packet, flag, address of recevier
     if (recvfrom(socketfd,&incoming, sizeof(incoming),0,(struct sockaddr*) 
 		 &clientAddress,&clientLen) <0){
-      printf("No packet received\n");
+      printf("no packet received\n");
       continue;
     }
-    printf("\nReceived a packet!\n");
+    printf("\nreceived a packet!\n");
     printPacket(incoming);
 
-    //Incoming packet is request
+    //incoming packet is request
     if (incoming.type == 0){
       sendData(socketfd, clientAddress, clientLen, windowSize, incoming);
       break; //for testing purposes
     }
     if (incoming.type == 2){
       //end of transaction
-      printf("\nEnding connection\n");
+      printf("\nending connection\n");
       break;
     }  
   }
@@ -102,10 +103,10 @@ int main(int argc, char *argv[]){
 void sendData(int socketfd, struct sockaddr_in clientAddress, 
 	      socklen_t clientLen,int windowSize,struct packet incoming){
   //struct packet outgoing;
-  char* fileName;
-  fileName= incoming.data;
-  printf("\nRequested file: %s\n",fileName);
-  struct fileInfo info = readFile(fileName, socketfd,clientAddress,clientLen);
+  char* filename;
+  filename= incoming.data;
+  printf("\nrequested file: %s\n",filename);
+  struct fileInfo info = readFile(filename, socketfd,clientAddress,clientLen);
   int fileSize = info.size;
   char* buffer = info.buffer;
   
@@ -115,9 +116,9 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
     totalNumPackets++; //because need one more packet for extra data
   }
 
-  //Variables to keep track of how much of file sent
+  //variables to keep track of how much of file sent
   int packetsSent=0;
-  int packetsSentTemp = 0; //packets sent but not yet ACKed
+  int packetsSentTemp = 0; //packets sent but not yet acked
   int minPos = 0;
   int maxPos = PACKET_SIZE * (windowSize-1);
   int sequenceNum = 0;
@@ -125,21 +126,21 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
   //int size; //size of packet
   char temp[PACKET_SIZE];
   struct package *front;
-  //front = (struct package*) malloc(sizeof(struct package) * windowSize);
+  //front = (struct package*) malloc(sizeof(struct package) * windowsize);
   front = NULL;
 
-  printf("File size = %d\n",fileSize);
-  printf("Total Number of Packets To Send = %d\n",totalNumPackets);
+  printf("file size = %d\n",fileSize);
+  printf("total number of packets to send = %d\n",totalNumPackets);
 
   while (1){
     printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
-    printf("Packets To Send: %d\n",totalNumPackets);
-    printf("Sent: %d\n",packetsSent);
+    printf("packets to send: %d\n",totalNumPackets);
+    printf("sent: %d\n",packetsSent);
     printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
     
     if (packetsSent == totalNumPackets){ //no more packets to send
-      printf("Done sending all packets!\n");
-      //send FIN packet
+      printf("done sending all packets!\n");
+      //send fin packet
       struct packet last;
       last.type = 2;
       last.size = 0;
@@ -147,7 +148,8 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	       &clientAddress,clientLen);      
       break;
     }
-    if (packetsSentTemp < windowSize){       //send packet
+
+    if (packetsSentTemp < windowSize){ //send packet
       struct packet *outgoing = (struct packet *)malloc(sizeof(struct packet));
       if (filePos < fileSize){
 	int packSize= PACKET_SIZE;
@@ -158,19 +160,14 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	memcpy(temp, buffer+filePos,packSize);
 
 	outgoing->type = 3;
-	//printf("inner seqNum= %d\n",sequenceNum);
 	outgoing->seqNum = sequenceNum;
-	//printf("outgoing seqNum =%d\n",outgoing->seqNum);
 	strcpy(outgoing->data,temp);
 	
 	struct package* pack = (struct package *)malloc(sizeof(struct package));
 	pack->p = *outgoing;
 	pack->p.size = packSize;
 	pack->p.seqNum = sequenceNum;
-	//printf ("size: %d\n",pack->p.size);
 	free(outgoing);
-	printf("packet type: %d\n",pack->p.type);
-	printf("packet seq num: %d\n",pack->p.seqNum);
 
 	if (front == NULL){ //first packet in window
 	  printf("first packet evaaa\n");
@@ -180,9 +177,9 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	}
 	else{
 	  pack->isMinPos =0;
-	  //loop until next == NULL
-	  struct package *point;
-	  point = front;
+	  //loop until next == null
+	  struct package *point = front;
+	  //point = front;
 	  while (point->next != NULL){
 	    point = point->next;
 	  }
@@ -199,48 +196,61 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	       &clientAddress,clientLen);
 	sentSuccessful(pack->p);
 
-	//pack->timeout.tv_sec = 1; //timeout in 1 s
-	//pack->timeout.tv_usec = 0;
-	pack->startTime = clock(); 
+	gettimeofday(&(pack->startTime),NULL);
       }
     }
     printf("window size = %d\n",windowSize);
     fd_set fileSet;
     FD_ZERO(&fileSet);
     FD_SET(socketfd,&fileSet);
+
+    //set up time out time
     struct timeval tOut;
-    tOut.tv_sec = 1;
-    tOut.tv_usec = 0;
-    int received;
-    received = select(socketfd+1,&fileSet,NULL,NULL,&tOut);
+    tOut.tv_sec = TOUT_SEC;
+    tOut.tv_usec = TOUT_USEC;
+    double tOutD = (tOut.tv_sec * 1000.0) + (tOut.tv_usec/1000.0); //in ms
 
-    printf("received: %d\n",received);
-    if ( received < 1){ //if timed out
-      printf("TIMEOUT!\n");
-      struct package *tP = front;
-      while (tp != NULL){
-	//check if any packets have timed out
-	clock_t diff= clock() - front->startTime;
-	int msec = diff *1000/CLOCKS_PER_SEC;
-	printf("elapsed: %d s %d ms\n",msec/1000,msec%1000);
-	if ( msec/1000 > tOut.tv_sec || msec/1000 == tOut.tv_Sec && msec%1000 >tOut.tv_usec){
-	  printf("this packet timed out\n");
-	}
-      }
-
+    struct timeval curr;
+    gettimeofday(&curr,NULL);
+    double elapsedTime;
+    //NEED TO CHANGE TO START TIME OF EARLIEST SENT PACKET
+    elapsedTime = (curr.tv_sec - front->startTime.tv_sec)*1000.0;
+    elapsedTime += (curr.tv_usec- front->startTime.tv_usec)/1000.0;
+    printf("elapsed time: %f ms\n",elapsedTime);
+    double leftD = tOutD - elapsedTime;
+    printf("time left: %f ms\n",leftD);
+    
+    if (leftD < 0){ // timed out
+      //printf("need to retransmit!\n");
+      sendto(socketfd, &front->p,sizeof(front->p),0,(struct sockaddr *) 
+	       &clientAddress,clientLen);      
+      retransmitSuccessful(front->p);
       continue;
     }
-    
-    if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
-		 &clientAddress, &clientLen) >=0){ 
-      printf("anything\n");
+    else{
+      printf("stil have time\n");
+      struct timeval left;
+      double tv = (leftD/1000)*1000000; 
+      printf("tv: %f\n",tv);
+      left.tv_sec = 0;
+      left.tv_usec = tv;
+
+      printf("ls :%f\n",(double)left.tv_sec);
+      printf("lus : %f\n",(double)left.tv_usec);
+      int received = select(socketfd+1,&fileSet,NULL,NULL,&left);
+      if (received < 1){
+	//retransmit earliest sent packet
+	printf("retransmitting earliest sent packet\n");
+	continue;
+      }
+
+      if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
+		   &clientAddress, &clientLen) >=0){ 
+	printf("anything\n");
 	if (incoming.type == 1){ //RECEIVE ACK
 	  int packetNumber = (incoming.seqNum / PACKET_SIZE);
-	  //printf("incoming seqNum: %d\n",incoming.seqNum);
 	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
-	  //if(1 == 1){
 	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
-	    //printf("front acked\n");
 	    packetsSent++;
 	    packetsSentTemp--; //decrement so can shift window
 	    front->acked = 1;
@@ -261,7 +271,8 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	    }
 	  }
 	}
-    }
+      }
+    }    
   }
 }
 
@@ -338,6 +349,17 @@ void sendFIN(int socketfd, struct sockaddr_in clientAddress, socklen_t clientLen
 void sentSuccessful(struct packet p){
   printf("~~~~~~~~~~~~~~~~~~~~~~\n");
   printf("Successfully sent Packet #%d!\n",((p.seqNum /PACKET_SIZE)+1));
+  printf("Sequence Number: %d\n",p.seqNum);
+  printf("Packet size: %d\n", p.size);
+  if (p.type == 3){
+    printf("Packet type: data\n");
+  }
+  printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+}
+
+void retransmitSuccessful(struct packet p){
+  printf("~~~~~~~~~~~~~~~~~~~~~~\n");
+  printf("Successfully Resent Packet #%d!\n",((p.seqNum /PACKET_SIZE)+1));
   printf("Sequence Number: %d\n",p.seqNum);
   printf("Packet size: %d\n", p.size);
   if (p.type == 3){
