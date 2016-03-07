@@ -284,102 +284,78 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 		   &clientAddress, &clientLen) >=0){ 
 	if (incoming.type == 1){ //RECEIVE ACK
 	  int packetNumber = (incoming.seqNum / PACKET_SIZE) + (timesRepeated*maxPackets);
-	  /*if (corruptOrLossSimulator(lossprob)){//packet lost
+
+	  if (corruptOrLossSimulator(lossprob)){//packet lost
+	    printf("PACKET #%d LOST\n", packetNumber);
 	    continue;
 	  }
 	  if (corruptOrLossSimulator(corrprob)){ //packet corrupted, don't ACK
 	    printf("Packet #%d Corrupted!\n", packetNumber);
 	    continue;
-	    }*/
+	  }
+
 	  if (incoming.seqNum % PACKET_SIZE != 0){ //last packet size different
 	    packetNumber+=1;
 	  }
 	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
+
+
+	  
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~FIX THIS -----------------------
+	  //NEED TO CHANGE THIS STATEMENT IN CASE LAST PACKET
 	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
+	    printf("front packet being ACKed\n");
 	    packetsSent++;
 	    packetsSentTemp--; //decrement so can shift window
-	    front->acked = 1;
-	    struct package *point = front;
+	    //front->acked = 1;  shouldn't be necessary
+
+	    minPos = front->p.seqNum + PACKET_SIZE; //shift window -need to change if shft more than 1
+	    maxPos = maxPos + PACKET_SIZE; 
+
 	    if (front->next != NULL){ //if have following packets 
+	      printf("more than one is list\n")
+	      struct package *point = front;
 	      front->next->isMinPos = 1;
 	      front = front->next;
+	      free(point); //remove acked package 
+	      printf("new front packet #%d\n", front->p->seqNum);
+
+	      //check that later packets not already acked
+	      struct package *pA = front;
+	      while (pA->acked == 1){
+		//remove from list
+		struct package *tempHolder = pA;
+		pA->next->isMinPos = 1;
+		pA = pA->next;
+		free(pA);
+		printf("new front packet #%d\n", pA->p->seqNum);
+	      }
+	      front = pA;
+	      printf("ultimate new front packets #%d\n",front->p->seqNum);
+
+
 	    }
-	    free(point); //remove acked package 
-	    minPos = front->p.seqNum; //shift window
-	    maxPos = maxPos + PACKET_SIZE; 
+	    else{
+	      printf("only one thing in list so free\n");
+	      front = NULL;
+	    }
+	    
 	  }
 	  else{
+	    //not the first packet in list
 	    packetsSent++;
 	    struct package *point = front;
 	    if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
 	      printf("here?\n");
 	      point->acked = 1;
 	    }
+	    free(point);
 	  }
 	}
+ //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
       }
     }
-
-    //NEED TO CHANGE TO START TIME OF EARLIEST SENT PACKET
-    /*elapsedTime = (curr.tv_sec - front->startTime.tv_sec)*1000.0;
-    elapsedTime += (curr.tv_usec- front->startTime.tv_usec)/1000.0;
-    printf("elapsed time: %f ms\n",elapsedTime);
-    double leftD = tOutD - elapsedTime;
-    printf("time left: %f ms\n",leftD);
-    
-    if (leftD < 0){ // timed out
-      //printf("need to retransmit!\n");
-      sendto(socketfd, &front->p,sizeof(front->p),0,(struct sockaddr *) 
-	       &clientAddress,clientLen);      
-      retransmitSuccessful(front->p);
-      continue;
-    }
-    else{
-      printf("stil have time\n");
-      struct timeval left;
-      double tv = (leftD/1000)*1000000; 
-      printf("tv: %f\n",tv);
-      left.tv_sec = 0;
-      left.tv_usec = tv;
-
-      printf("ls :%f\n",(double)left.tv_sec);
-      printf("lus : %f\n",(double)left.tv_usec);
-      int received = select(socketfd+1,&fileSet,NULL,NULL,&left);
-      if (received < 1){
-	//retransmit earliest sent packet
-	printf("retransmitting earliest sent packet\n");
-	continue;
-      }
-
-      if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
-		   &clientAddress, &clientLen) >=0){ 
-	printf("anything\n");
-	if (incoming.type == 1){ //RECEIVE ACK
-	  int packetNumber = (incoming.seqNum / PACKET_SIZE);
-	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
-	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
-	    packetsSent++;
-	    packetsSentTemp--; //decrement so can shift window
-	    front->acked = 1;
-	    struct package *point = front;
-	    if (front->next != NULL){ //if have following packets 
-	      front->next->isMinPos = 1;
-	      front = front->next;
-	    }
-	    free(point); //remove acked package 
-	    minPos = front->p.seqNum; //shift window
-	    maxPos = maxPos + PACKET_SIZE; 
-	  }
-	  else{
-	    packetsSent++;
-	    struct package *point = front;
-	    if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
-	      point->acked = 1;
-	    }
-	  }
-	}
-      }
-    }*/
   }
 }
 
