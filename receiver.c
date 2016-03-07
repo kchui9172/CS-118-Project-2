@@ -129,6 +129,9 @@ int main(int argc, char **argv) {
       error("Error opening file for writing");
     }
 	
+    int timesRepeated = 0;
+    int maxPackets = SEQNUM_LIM/PACKET_SIZE;
+
 	while(1)
 	{
 		n = recvfrom(sockfd, &p_in, sizeof(p_in), 0, (struct sockaddr*) &serveraddr, &serverlen);
@@ -165,7 +168,8 @@ int main(int argc, char **argv) {
 			if(p_in.type == 3) //means this is a data packet
 			{
 				printf("\nCLIENT: Received data packet\n");
-				printf("Received Packet #%d\n",((p_in.seqNum/PACKET_SIZE)+1));
+				int packetNum = ((p_in.seqNum/PACKET_SIZE)+1) + (timesRepeated *maxPackets);
+				printf("Received Packet #%d\n",packetNum);
 				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
 			        fwrite(p_in.data,1,p_in.size,file);
 				
@@ -212,6 +216,9 @@ int main(int argc, char **argv) {
 				
 				//printf("message: %s\n",p_in.data);
 				p_out.seqNum = p_in.seqNum + p_in.size;
+				if (p_out.seqNum >= SEQNUM_LIM){
+				  timesRepeated +=1;
+				}
 				//p_out.seqNum = current_seqNum+PACKET_SIZE;
 				//current_seqNum+=p_in.size;
 				//write data to file
@@ -230,7 +237,7 @@ int main(int argc, char **argv) {
 		{
 			error("ERROR sending ACK packet");
 		}	
-		int packetNumber = (p_in.seqNum/PACKET_SIZE)+1;
+		int packetNumber = ((p_in.seqNum/PACKET_SIZE)+1) + (timesRepeated *maxPackets);
 		printf("\nCLIENT: sent ACK Packet #%d (type: %d, seq: %d, size: %d)\n", packetNumber,p_out.type, p_out.seqNum, p_out.size);
 		
 	}

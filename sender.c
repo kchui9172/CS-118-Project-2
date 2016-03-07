@@ -12,13 +12,15 @@
 
 //Helper Functions:
 void sendData(int socketfd, struct sockaddr_in clientAddress, 
-	       socklen_t clientLen,int windowSize,struct packet incoming);
+	      socklen_t clientLen,int windowSize,struct packet incoming, 
+	      double lossprob, double corrprob);
 void printPacket(struct packet toprint);
 struct fileInfo readFile(char* fname,int socketfd, struct sockaddr_in 
 			  clientaddress, socklen_t clientlen);
 void sendFIN(int socketfd, struct sockaddr_in clientaddress, socklen_t clientlen);
-void sentSuccessful(struct packet p, int timesRepeated, int maxPackest);
-void retransmitSuccessful(struct packet p);
+void sentSuccessful(struct packet p, int timesRepeated, int maxPackets);
+void retransmitSuccessful(struct packet p, int timesRepeated, int maxPackets);
+int corruptOrLossSimulator(double probability);
 
  struct fileInfo{
    char* buffer;
@@ -91,7 +93,7 @@ int main(int argc, char *argv[]){
 
     //incoming packet is request
     if (incoming.type == 0){
-      sendData(socketfd, clientAddress, clientLen, windowSize, incoming);
+      sendData(socketfd, clientAddress, clientLen, windowSize, incoming, lossprob, corrprob);
       break; //for testing purposes
     }
     if (incoming.type == 2){
@@ -106,7 +108,8 @@ int main(int argc, char *argv[]){
 
 
 void sendData(int socketfd, struct sockaddr_in clientAddress, 
-	      socklen_t clientLen,int windowSize,struct packet incoming){
+	      socklen_t clientLen,int windowSize,struct packet incoming, 
+	      double lossprob, double corrprob){
   //struct packet outgoing;
   char* filename;
   filename= incoming.data;
@@ -205,7 +208,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	if (sequenceNum >= SEQNUM_LIM){
 	  sequenceNum = 0;
 	  timesRepeated += 1;
-	  printf("reset!\n");
+	  //printf("reset!\n");
 	}
 
 	packetsSentTemp++;
@@ -243,7 +246,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	printf("already timed out\n");
 	sendto(socketfd,&e->p,sizeof(e->p),0,(struct sockaddr *)
 	       &clientAddress,clientLen);
-	retransmitSuccessful(e->p); //deal with corruption here!
+	retransmitSuccessful(e->p,timesRepeated,maxPackets); //deal with corruption here!
 	//reset timer for earliest
 	gettimeofday(&(e->startTime),NULL); //set time for packet just sent
 	alreadyRetransmitted = 1;
@@ -255,7 +258,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       }
       e = e->next;
     }
-    printf("Time left: %f ms\n",minTimeLeft);
+    printf("Min Time Left Until Next Time Out: %f ms\n",minTimeLeft);
 
     if (alreadyRetransmitted == 0){ //didn't already retransmit
       printf("still have time\n");
@@ -270,10 +273,10 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       int received = select(socketfd+1,&fileSet,NULL,NULL,&left);
       if (received < 1){
 	//retransmit earliest sent packet
-	printf("retransmitting earliest sent packet\n");
+	printf("Retransmitting earliest sent packet\n");
 	sendto(socketfd,&earliest->p,sizeof(earliest->p),0,(struct sockaddr *)
 	       &clientAddress,clientLen);
-	retransmitSuccessful(earliest->p); //deal with corruption here!
+	retransmitSuccessful(earliest->p,timesRepeated,maxPackets); //deal with corruption here!
 	gettimeofday(&(earliest->startTime),NULL); //set time for packet just sent	
 	continue;
       }
@@ -281,6 +284,13 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 		   &clientAddress, &clientLen) >=0){ 
 	if (incoming.type == 1){ //RECEIVE ACK
 	  int packetNumber = (incoming.seqNum / PACKET_SIZE) + (timesRepeated*maxPackets);
+	  /*if (corruptOrLossSimulator(lossprob)){//packet lost
+	    continue;
+	  }
+	  if (corruptOrLossSimulator(corrprob)){ //packet corrupted, don't ACK
+	    printf("Packet #%d Corrupted!\n", packetNumber);
+	    continue;
+	    }*/
 	  if (incoming.seqNum % PACKET_SIZE != 0){ //last packet size different
 	    packetNumber+=1;
 	  }
@@ -455,13 +465,25 @@ void sentSuccessful(struct packet p, int timesRepeated,int maxPackets){
   printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 }
 
-void retransmitSuccessful(struct packet p){
+void retransmitSuccessful(struct packet p, int timesRepeated, int maxPackets){
   printf("~~~~~~~~~~~~~~~~~~~~~~\n");
-  printf("Successfully Resent Packet #%d!\n",((p.seqNum /PACKET_SIZE)+1));
+ int packNum = ((p.seqNum/PACKET_SIZE) + 1) + (timesRepeated*maxPackets);
+  printf("Successfully Resent Packet #%d!\n",packNum);
   printf("Sequence Number: %d\n",p.seqNum);
   printf("Packet size: %d\n", p.size);
   if (p.type == 3){
     printf("Packet type: data\n");
   }
   printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+}
+
+int corruptOrLossSimulator(double probability){
+  double corrupt_or_loss = rand() / (double) RAND_MAX;
+  if (corrupt_or_loss <= probability){
+    printf("\nCORRUPTED OR LOST\n");
+    return 1; //corruption or loss occured
+  }
+  else{
+    return 0;
+  }
 }
