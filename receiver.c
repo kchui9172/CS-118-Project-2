@@ -114,11 +114,7 @@ int main(int argc, char **argv) {
     p_out.type = 1;
     p_out.seqNum = current_seqNum;
     p_out.size = 0;
-	
-    //Packet ACK recv buffer with size 30 (30 is max seqNum we will have)
-    struct packet ackRecvPacketsBuffer[30];
-    int packetIndex = 0;
-    struct packet *currentLookUp = &ackRecvPacketsBuffer[0];
+
 	
     char n_filename[FILENAMESIZE];
     strcpy(n_filename, "tn_");
@@ -216,7 +212,7 @@ int main(int argc, char **argv) {
 					remainder = SEQNUM_LIM - current_seqNum;
 					
 
-					if( remainder < PACKET_SIZE || current_index > maxPackets+1) //reset buffer when full
+					if( remainder < PACKET_SIZE || current_index > maxPackets) //reset buffer when full
 					{
 						printf("Resetting buffer because it is full\n");
 						check = 1;
