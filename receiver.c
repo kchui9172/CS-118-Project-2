@@ -131,6 +131,13 @@ int main(int argc, char **argv) {
 	
     int timesRepeated = 0;
     int maxPackets = SEQNUM_LIM/PACKET_SIZE;
+    struct packet * ackRecvPacketsBuffer = malloc(maxPackets * sizeof(struct packet));
+    printf("Maxpackets: %d", maxPackets);
+    int packetIndex = 0;
+    int current_index = 1;
+    int remainder = 0;
+    int check = 0;
+    int wroteToFile = 0;
 
 	while(1)
 	{
@@ -171,57 +178,66 @@ int main(int argc, char **argv) {
 				int packetNum = ((p_in.seqNum/PACKET_SIZE)+1) + (timesRepeated *maxPackets);
 				printf("Received Packet #%d\n",packetNum);
 				printf("(Type: %d, seq: %d, size: %d)\n", p_in.type, p_in.seqNum, p_in.size);
-			        fwrite(p_in.data,1,p_in.size,file);
 				
-				//COMMENTED OUT BUFFER PORTION UNTIL FIXED
+			        //fwrite(p_in.data,1,p_in.size,file);
+				
+				//getting the packetNumber and setting as the index
+				packetIndex = ((p_in.seqNum/PACKET_SIZE)+1) % maxPackets;
 
-				//storing the packet in correct index of buffer
-				/*packetIndex = p_in.seqNum;
-				if (packetIndex > 30)
+				if (packetIndex == 0) //if multiple of maxPackets, need to know which one
 				{
-					error("ERROR in seqNum. Greater than max size");	
+					packetIndex = maxPackets;
 				}
-				//store the current packet we recieved in the recieve buffer
-				ackRecvPacketsBuffer[packetIndex] = p_in;
+				//printf("currentIndex: %d\n", current_index);
+				//printf("PacketIndex: %d\n", packetIndex);
+				//printf("timesRepeated: %d\n", timesRepeated);
+	
+				ackRecvPacketsBuffer[packetIndex].seqNum = p_in.seqNum;
+				ackRecvPacketsBuffer[packetIndex].size = p_in.size;
+				strcpy(ackRecvPacketsBuffer[packetIndex].data, p_in.data);
 				
+				//fwrite(ackRecvPacketsBuffer[packetIndex].data,1,ackRecvPacketsBuffer[packetIndex].size,file);
+				//printf("sizePacket: %d\n", p_in.size);
+				//printf("sizePacketArray: %d\n", ackRecvPacketsBuffer[packetIndex].size);
+				
+
 				//write packet data to file if in correct order
-				//make sure the seqNum we currently on is the same as the seqNum in the buffer index we are looking at
-				//if not we have out of order packet
-				if(currentLookUp != NULL && current_seqNum == currentLookUp->seqNum )
+				if(current_seqNum == ackRecvPacketsBuffer[current_index].seqNum)
 				{
-					fwrite(currentLookUp->data,1,currentLookUp->size,file); //will be conditional
-			 	                                    //depends on if in order
-					currentLookUp++; //increment the pointer of the buffer to the next element
-					current_seqNum++; //incrment our current seqNum we should be expecting to write to file
+					//printf("sizeCurrentArray: %d\n", ackRecvPacketsBuffer[current_index].size);
+					fwrite(ackRecvPacketsBuffer[current_index].data,1,ackRecvPacketsBuffer[current_index].size,file);
+					wroteToFile++;
+                                        printf("Wrote to file %d\n", wroteToFile);
+					current_index++;
 					
-					if(current_seqNum > 30) //reset buffer when full
-					{
-						currentLookUp = &ackRecvPacketsBuffer[0] ;
-						current_seqNum = 0;
-						//int i;
-						//for (i = 0; i < 30; i++)
-						//{
-						  //ackRecvPacketsBuffer[i] = NULL;
-						  //bzero(ackRecvPacketsBuffer[i],sizeof(struct packet));
-						//}
-					}
 				
+					int size = ackRecvPacketsBuffer[packetIndex].size;
+					current_seqNum = current_seqNum + size;
+					remainder = SEQNUM_LIM - current_seqNum;
+					
+
+					if( remainder < PACKET_SIZE || current_index > maxPackets+1) //reset buffer when full
+					{
+						printf("Resetting buffer because it is full\n");
+						check = 1;
+						current_index = 1;
+						current_seqNum = 0;
+						for (int i = 1; i < maxPackets; i++)
+						{
+							ackRecvPacketsBuffer[i].seqNum = -1;
+							ackRecvPacketsBuffer[i].size = -1;
+							memset(ackRecvPacketsBuffer[i].data, 0, strlen(ackRecvPacketsBuffer[i].data));
+						}
+					}
+					
 				}
 				else //out of order packet
 				{
-					printf("Packet with seq: %d out of order buffered in bufferArray", p_in.seqNum);
-					printf("Expected Packet with seq: %d to be written to the file next. Will wait to write to file until correct packet comes in", current_seqNum);
+					
+					printf("\nPacket with seq: %d out of order buffered in bufferArray", p_in.seqNum);
+					printf("\nExpected Packet with seq: %d to be written to the file next. Will wait to write to file until correct packet comes in", current_seqNum);
+					
 				}
-				*/
-				
-				//printf("message: %s\n",p_in.data);
-				p_out.seqNum = p_in.seqNum + p_in.size;
-				if (p_out.seqNum >= SEQNUM_LIM){
-				  timesRepeated +=1;
-				}
-				//p_out.seqNum = current_seqNum+PACKET_SIZE;
-				//current_seqNum+=p_in.size;
-				//write data to file
 			}
 			else //means no data in packet
 			{
