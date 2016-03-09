@@ -395,7 +395,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 		  //end of file so acknowledge
 		printf("last packet everrr\n");
 		packetsSent++;
-		packetsSentTemp--;
+		//packetsSentTemp--;
 		//free(front);
 		break;
 	      }

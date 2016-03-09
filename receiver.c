@@ -262,7 +262,6 @@ int main(int argc, char **argv) {
     printf("\nClosing file, client, and socket\n");
     close(sockfd); //close socket
     fclose(file);
-    printf("meow\n");
     
     return 0;
 }
