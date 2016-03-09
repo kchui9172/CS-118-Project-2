@@ -295,6 +295,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
 		   &clientAddress, &clientLen) >=0){ 
 	if (incoming.type == 1){ //RECEIVE ACK
+	  printf("incoming.seqNum: %d\n",incoming.seqNum);
 	  int packetNumber = (incoming.seqNum / PACKET_SIZE) + (timesRepeated*maxPackets);
 
 	  if (corruptOrLossSimulator(lossprob)){//packet lost
@@ -308,6 +309,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 
 	  if (incoming.seqNum % PACKET_SIZE != 0){ //last packet size different
 	    packetNumber+=1;
+	    printf("inside\n");
 	  }
 	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
 
@@ -393,7 +395,8 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 		  //end of file so acknowledge
 		printf("last packet everrr\n");
 		packetsSent++;
-		free(front);
+		packetsSentTemp--;
+		//free(front);
 		break;
 	      }
 	      point = point->next;
