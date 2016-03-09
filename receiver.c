@@ -164,10 +164,10 @@ int main(int argc, char **argv) {
 	break;
       }
 
-      else //no packet loss or corruption
+      //else //no packet loss or corruption
+      //{
+      if(p_in.type == 3) //means this is a data packet
       {
-	if(p_in.type == 3) //means this is a data packet
-	{
 	  printf("\nCLIENT: Received data packet\n");
 	  int packetNum = ((p_in.seqNum/PACKET_SIZE)+1) + (timesRepeated *maxPackets);
 	  printf("Received Packet #%d\n",packetNum);
@@ -179,7 +179,6 @@ int main(int argc, char **argv) {
 	  if (packetIndex == 0) //if multiple of maxPackets, need to know which one
 	    {
 	      packetIndex = maxPackets;
-	      printf("inside packet index %d\n",packetIndex);
 	    }
 	  printf("currentIndex: %d\n", current_index);
 	  printf("PacketIndex: %d\n", packetIndex);
@@ -219,7 +218,7 @@ int main(int argc, char **argv) {
 		      ackRecvPacketsBuffer[i].size = -1;
 		      memset(ackRecvPacketsBuffer[i].data, 0, strlen(ackRecvPacketsBuffer[i].data));
 		    }
-		}		
+		}
 	  }
 
 	  else //out of order packet
@@ -227,14 +226,14 @@ int main(int argc, char **argv) {
 	    printf("\nPacket with seq: %d out of order buffered in bufferArray", p_in.seqNum);
 	    printf("\nExpected Packet with seq: %d to be written to the file next. Will wait to write to file until correct packet comes in", current_seqNum);
 	  }
-	}
-
-	else //means no data in packet
-        {
-	  printf("CLIENT: Received non-data packet: seq # = %d\n", p_in.seqNum);
-	  continue;
-	}
       }
+
+      else //means no data in packet
+      {
+	printf("CLIENT: Received non-data packet: seq # = %d\n", p_in.seqNum);
+	continue;
+      }
+      //}
 		
       //sending ACK packet
       p_out.seqNum = p_in.seqNum + p_in.size;
@@ -242,8 +241,7 @@ int main(int argc, char **argv) {
       if (n < 0)
 	{
 	  error("ERROR sending ACK packet");
-	}	
-      //p_out.seqNum = p_in.seqNum + p_in.size;
+	}      
       int packetNumber = ((p_in.seqNum/PACKET_SIZE)+1) + (timesRepeated *maxPackets);
       printf("\nCLIENT: sent ACK Packet #%d (type: %d, seq: %d, size: %d)\n", packetNumber,p_out.type, p_out.seqNum, p_out.size);
 		
@@ -264,6 +262,7 @@ int main(int argc, char **argv) {
     printf("\nClosing file, client, and socket\n");
     close(sockfd); //close socket
     fclose(file);
+    printf("meow\n");
     
     return 0;
 }
