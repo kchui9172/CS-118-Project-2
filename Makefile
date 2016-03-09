@@ -1,8 +1,11 @@
-CC=gcc
-OBJ=sender.o
+all: receiver sender
 
-%.o: %.c$(DEPS)
-	$(CC) -c -o $@ $<
+receiver: receiver.o
+	gcc -o receiver receiver.c
 
-sender: $(OBJ)
-	$(CC) -o $@ $^
+sender: sender.o
+	gcc -o sender sender.c
+
+clean:
+	$(RM) sender
+	$(RM) receiver
