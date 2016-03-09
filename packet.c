@@ -1,7 +1,7 @@
 //packet
 #include <time.h>
-#define PACKET_SIZE 10 //should by 1024
-#define SEQNUM_LIM 500 //should be 30720
+#define PACKET_SIZE 1024 //should by 1024
+#define SEQNUM_LIM 30720 //should be 30720
 #define TOUT_SEC 1
 #define TOUT_USEC 0
 

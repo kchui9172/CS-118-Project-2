@@ -127,6 +127,16 @@ int main(int argc, char **argv) {
     int timesRepeated = 0;
     int maxPackets = SEQNUM_LIM/PACKET_SIZE;
     struct packet * ackRecvPacketsBuffer = malloc((maxPackets+1) * sizeof(struct packet));
+    int j;
+    for (j = 1; j < maxPackets+1; j++){
+      //printf("inside\n");
+      //memset(ackRecvPacketsBuffer[i].seqNum,-1, strlen(ackRecvPacketsBuffer[i].seqNum));
+      ackRecvPacketsBuffer[j].seqNum = -1;
+      //printf("ack in: %d\n",ackRecvPacketsBuffer[i].seqNum);
+      ackRecvPacketsBuffer[j].size = -1;
+      //memset(ackRecvPacketsBuffer[i].data, 0, strlen(ackRecvPacketsBuffer[i].data));
+    }
+
     printf("Maxpackets: %d", maxPackets);
     int packetIndex = 0;
     int current_index = 1;
@@ -165,8 +175,6 @@ int main(int argc, char **argv) {
 	break;
       }
 
-      //else //no packet loss or corruption
-      //{
       if(p_in.type == 3) //means this is a data packet
       {
 	  printf("\nCLIENT: Received data packet\n");
@@ -184,15 +192,11 @@ int main(int argc, char **argv) {
 	  printf("currentIndex: %d\n", current_index);
 	  printf("PacketIndex: %d\n", packetIndex);
 	  printf("Current seqnum :%d\n",current_seqNum);
-	  //printf("timesRepeated: %d\n", timesRepeated);
 	
 	  ackRecvPacketsBuffer[packetIndex].seqNum = p_in.seqNum;
 	  ackRecvPacketsBuffer[packetIndex].size = p_in.size;
 	  strcpy(ackRecvPacketsBuffer[packetIndex].data, p_in.data);
-				
-	  //fwrite(ackRecvPacketsBuffer[packetIndex].data,1,ackRecvPacketsBuffer[packetIndex].size,file)
-	  //printf("sizePacket: %d\n", p_in.size);
-	  //printf("sizePacketArray: %d\n", ackRecvPacketsBuffer[packetIndex].size);
+	  printf(" ackRecvk: %d\n",ackRecvPacketsBuffer[current_index].seqNum);
 				
 	  //write packet data to file if in correct order
 	  if(current_seqNum == ackRecvPacketsBuffer[current_index].seqNum)
@@ -218,12 +222,16 @@ int main(int argc, char **argv) {
 		  current_index = 1;
 		  current_seqNum = 0;
 		  int i;
-		  for (i = 1; i < maxPackets+1; i++)
-		    {
+		  for (i = 1; i < maxPackets+1; i++){
+		      printf("inside\n");
+		      //memset(ackRecvPacketsBuffer[i].seqNum,-1, strlen(ackRecvPacketsBuffer[i].seqNum));
 		      ackRecvPacketsBuffer[i].seqNum = -1;
+		      //printf("ack in: %d\n",ackRecvPacketsBuffer[i].seqNum);
 		      ackRecvPacketsBuffer[i].size = -1;
-		      memset(ackRecvPacketsBuffer[i].data, 0, strlen(ackRecvPacketsBuffer[i].data));
+		      //memset(ackRecvPacketsBuffer[i].data, 0, strlen(ackRecvPacketsBuffer[i].data));
 		    }
+		  printf("ack %d\n", ackRecvPacketsBuffer[1].seqNum);
+		  printf("ack %d\n", ackRecvPacketsBuffer[2].seqNum);
 		}
 	  }
 
@@ -253,13 +261,14 @@ int main(int argc, char **argv) {
 		
     }
 
-    printf("curr seq num: %d\n", current_seqNum);
+    /*printf("curr seq num: %d\n", current_seqNum);
     int lastIndex = ((current_seqNum/PACKET_SIZE)+1) % maxPackets;
     while(ackRecvPacketsBuffer[lastIndex].seqNum != 0){
       printf("printing packet #%d\n", lastIndex);
       fwrite(ackRecvPacketsBuffer[lastIndex].data,1,ackRecvPacketsBuffer[lastIndex].size,file); 
       lastIndex++;
-    }
+      }*/
+
     /*int last = current_seqNum + PACKET_SIZE;
     int lastIndex = ((current_seqNum/PACKET_SIZE)+1) % maxPackets;
     printf("list seqnum and packet index: %d, %d\n",last,lastIndex);
