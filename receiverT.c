@@ -200,6 +200,9 @@ int main(int argc, char **argv) {
 	  //write packet data to file if in correct order
 	  if(current_seqNum == ackRecvPacketsBuffer[current_index].seqNum)
 	  {
+	    if (wroteToFile == 40){
+	      printf("message: %s\n",ackRecvPacketsBuffer[current_index].data); // REMOVE THIS 
+	    }
 	      //printf("sizeCurrentArray: %d\n", ackRecvPacketsBuffer[current_index].size);
 	      fwrite(ackRecvPacketsBuffer[current_index].data,1,ackRecvPacketsBuffer[current_index].size,file);
 	      wroteToFile++;

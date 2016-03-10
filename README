@@ -1,6 +1,11 @@
 CS 118 Project 2: 
 Group #20
 Kristen Chui 104289172
-Sahil Shridhar 004281553
+-wrote Makefile
+-implemented sender side- timeouts, linked list of unacked packets
+-wrote report
+-fixed receiver side buffer
 
-DESCRIPTION OF HOW SPLIT WORK
+Sahil Shridhar 004281553
+- wrote base code for receiver side
+
