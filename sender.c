@@ -182,6 +182,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	pack->p.size = packSize;
 	pack->p.seqNum = sequenceNum;
 	pack->acked = 0;
+	pack->p.timesRepeated = timesRepeated;
 	free(outgoing);
 
 	if (front == NULL){ //first packet in window
@@ -191,6 +192,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	  front = pack;
 	}
 	else{
+	  printf("front seqNum: %d",front->p.seqNum);
 	  printf("something already in list\n");
 	  pack->isMinPos =0;
 	  //loop until next == NULL and add packet
@@ -245,6 +247,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
     int alreadyRetransmitted = 0;
 
     while (e != NULL){
+      printf("e seq: %d, e tR: %d\n",e->p.seqNum, e->p.timesRepeated);
       if (e->acked != 1){ //if packet hasn't been acked yet then check time
 	elapsedTime = (curr.tv_sec - e->startTime.tv_sec)*1000.0;
 	elapsedTime += (curr.tv_usec - e->startTime.tv_usec)/1000.0;
@@ -253,7 +256,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	  printf("already timed out\n");
 	  sendto(socketfd,&e->p,sizeof(e->p),0,(struct sockaddr *)
 		 &clientAddress,clientLen);
-	  retransmitSuccessful(e->p,timesRepeated,maxPackets); //deal with corruption here!
+	  retransmitSuccessful(e->p,timesRepeated,maxPackets); 
 	  //reset timer for earliest
 	  gettimeofday(&(e->startTime),NULL); //set time for packet just sent
 	  alreadyRetransmitted = 1;
@@ -286,12 +289,15 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       if (received < 1){
 	//retransmit earliest sent packet
 	printf("Retransmitting earliest sent packet\n");
+	printf("earliest time repeated: %d\n", earliest->p.timesRepeated);
 	sendto(socketfd,&earliest->p,sizeof(earliest->p),0,(struct sockaddr *)
 	       &clientAddress,clientLen);
-	retransmitSuccessful(earliest->p,timesRepeated,maxPackets); //deal with corruption here!
+	retransmitSuccessful(earliest->p,timesRepeated,maxPackets); 
 	gettimeofday(&(earliest->startTime),NULL); //set time for packet just sent	
-	continue;
+	continue; //THIS IS A BIG CHANGE
       }
+    
+
       if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
 		   &clientAddress, &clientLen) >=0){ 
 	if (incoming.type == 1){ //RECEIVE ACK
@@ -314,64 +320,68 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
 
 
+	  if (incoming.timesRepeated < 0){
+	      printf("first thing\n");
+	      incoming.timesRepeated = 0;
+	    }
 	  //NEED TO CHANGE THIS STATEMENT IN CASE LAST PACKET
-	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE){ //front always min pos
-	    printf("front packet being ACKed\n");
-	    packetsSent++;
-	    packetsSentTemp--; //decrement so can shift window
+	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE && front->p.timesRepeated == incoming.timesRepeated){ //front always min pos
+	    
+	      printf("front packet being ACKed\n");
+	      packetsSent++;
+	      packetsSentTemp--; //decrement so can shift window
 
-	    minPos = front->p.seqNum + PACKET_SIZE; //shift window
-	    maxPos = maxPos + PACKET_SIZE; 
+	      minPos = front->p.seqNum + PACKET_SIZE; //shift window
+	      maxPos = maxPos + PACKET_SIZE; 
 
-	    if (front->next != NULL){ //if have following packets 
-	      printf("more than one is list\n");
-	      struct package *point = front;
-	      front->next->isMinPos = 1;
-	      front = front->next;
-	      free(point); //remove acked package 
-	      printf("new front packet seq#%d\n", front->p.seqNum);
+	      if (front->next != NULL){ //if have following packets 
+		printf("more than one is list\n");
+		struct package *point = front;
+		front->next->isMinPos = 1;
+		front = front->next;
+		free(point); //remove acked package 
+		printf("new front packet seq#%d\n", front->p.seqNum);
 
-	      //check that later packets not already acked
-	      struct package *pA = front;
-	      int nextSeqNum = 0;
-	      while (pA != NULL){
-		if (pA->acked == 1){
-		  //remove from list
-		  packetsSentTemp--;
-		  minPos = front->p.seqNum + PACKET_SIZE; 
-		  maxPos = maxPos + PACKET_SIZE; 		
-		  struct package *tempHolder = pA;
-		  nextSeqNum = pA->p.seqNum + PACKET_SIZE;
-		  if (pA->next != NULL){
-		    pA->next->isMinPos = 1;
-		  }
-		  pA = pA->next;
-		  free(tempHolder);
-		  if(pA != NULL){
-		    printf("new front packet seq#%d\n", pA->p.seqNum);
+		//check that later packets not already acked
+		struct package *pA = front;
+		int nextSeqNum = 0;
+		while (pA != NULL){
+		  if (pA->acked == 1){
+		    //remove from list
+		    packetsSentTemp--;
+		    minPos = front->p.seqNum + PACKET_SIZE; 
+		    maxPos = maxPos + PACKET_SIZE; 		
+		    struct package *tempHolder = pA;
+		    nextSeqNum = pA->p.seqNum + PACKET_SIZE;
+		    if (pA->next != NULL){
+		      pA->next->isMinPos = 1;
+		    }
+		    pA = pA->next;
+		    free(tempHolder);
+		    if(pA != NULL){
+		      printf("new front packet seq#%d\n", pA->p.seqNum);
+		    }
+		    else{
+		      printf("empty so next packet seq#%d\n",nextSeqNum);
+		    }
+		    //continue;
 		  }
 		  else{
-		    printf("empty so next packet seq#%d\n",nextSeqNum);
+		    break;
 		  }
-		  //continue;
+		}
+		front = pA;
+		if(front == NULL){
+		  printf("all empty, next front should be %d\n",nextSeqNum);
 		}
 		else{
-		  break;
+		  printf("ultimate new front packets #%d\n",front->p.seqNum);
 		}
 	      }
-	      front = pA;
-	      if(front == NULL){
-		printf("all empty, next front should be %d\n",nextSeqNum);
-	      }
 	      else{
-		printf("ultimate new front packets #%d\n",front->p.seqNum);
+		printf("only one thing in list so free\n");
+		front = NULL;
 	      }
-	    }
-	    else{
-	      printf("only one thing in list so free\n");
-	      front = NULL;
-	    }
-	    
 	  }
 	  else{
 	    //not the first packet in list
@@ -379,16 +389,172 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	    struct package *point = front;
 	    int count = 1;
 	    //find matching packet and ACK
+	    printf("front seqNum :%d\n",front->p.seqNum);
+	    printf("incoming tr: %d\n",incoming.timesRepeated);
+	    if (incoming.timesRepeated < 0){
+	      printf("first thing\n");
+	      incoming.timesRepeated = 0;
+	    }
 	    while (point != NULL){
+	      printf("point seqNum: %d\n",point->p.seqNum);
+	      printf("point tr: %d\n",point->p.timesRepeated);
 	      if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
+		if(point->p.timesRepeated == incoming.timesRepeated){
+		  packetsSent++;
+		  printf("here?\n");
+		  printf("#%d in list\n",count);
+		  point->acked = 1;
+		  break;
+		}
+		else{
+		  printf("not same cycle\n");
+		}
+	      }
+
+	      //last packet seqNum
+	      int maxSN = fileSize;
+	      int te = SEQNUM_LIM * timesRepeated;
+	      if (incoming.seqNum == maxSN -te){
+		  //end of file so acknowledge
+		printf("last packet everrr\n");
+		printf("incoming seqNum: %d\n", incoming.seqNum);
+		printf("incoming Tr: %d\n", incoming.timesRepeated);
+		struct package *last = front;
+		while (last->next != NULL){
+		  last = last->next;
+		}
+		last->acked = 1;
+		//point->acked =1;
 		packetsSent++;
-		printf("here?\n");
-		printf("#%d in list\n",count);
-		point->acked = 1;
-		//set timer to infinite?
+		//packetsSentTemp--;
+		//free(front);
 		break;
 	      }
-	      //last packet seqNum
+	      point = point->next;
+	      count +=1;
+	    }
+ 
+	  }
+	}
+
+      } 
+    }
+    //
+    /*printf("waiting to receive\n");
+    if (recvfrom(socketfd,&incoming,sizeof(incoming),0,(struct sockaddr *) 
+		   &clientAddress, &clientLen) >=0){ 
+	if (incoming.type == 1){ //RECEIVE ACK
+	  printf("incoming.seqNum: %d\n",incoming.seqNum);
+	  int packetNumber = (incoming.seqNum / PACKET_SIZE) + (timesRepeated*maxPackets);
+
+	  if (corruptOrLossSimulator(lossprob)){//packet lost
+	    printf("PACKET #%d LOST\n", packetNumber);
+	    continue;
+	  }
+	  if (corruptOrLossSimulator(corrprob)){ //packet corrupted, don't ACK
+	    printf("Packet #%d Corrupted!\n", packetNumber);
+	    continue;
+	  }
+
+	  if (incoming.seqNum % PACKET_SIZE != 0){ //last packet size different
+	    packetNumber+=1;
+	    printf("inside\n");
+	  }
+	  printf("RECEIVED AN ACK for Packet #%d\n",packetNumber);
+
+
+	  if (incoming.timesRepeated < 0){
+	      printf("first thing\n");
+	      incoming.timesRepeated = 0;
+	    }
+	  //NEED TO CHANGE THIS STATEMENT IN CASE LAST PACKET
+	  if (front->p.seqNum == incoming.seqNum - PACKET_SIZE && front->p.timesRepeated == incoming.timesRepeated){ //front always min pos
+	    
+	      printf("front packet being ACKed\n");
+	      packetsSent++;
+	      packetsSentTemp--; //decrement so can shift window
+
+	      minPos = front->p.seqNum + PACKET_SIZE; //shift window
+	      maxPos = maxPos + PACKET_SIZE; 
+
+	      if (front->next != NULL){ //if have following packets 
+		printf("more than one is list\n");
+		struct package *point = front;
+		front->next->isMinPos = 1;
+		front = front->next;
+		free(point); //remove acked package 
+		printf("new front packet seq#%d\n", front->p.seqNum);
+
+		//check that later packets not already acked
+		struct package *pA = front;
+		int nextSeqNum = 0;
+		while (pA != NULL){
+		  if (pA->acked == 1){
+		    //remove from list
+		    packetsSentTemp--;
+		    minPos = front->p.seqNum + PACKET_SIZE; 
+		    maxPos = maxPos + PACKET_SIZE; 		
+		    struct package *tempHolder = pA;
+		    nextSeqNum = pA->p.seqNum + PACKET_SIZE;
+		    if (pA->next != NULL){
+		      pA->next->isMinPos = 1;
+		    }
+		    pA = pA->next;
+		    free(tempHolder);
+		    if(pA != NULL){
+		      printf("new front packet seq#%d\n", pA->p.seqNum);
+		    }
+		    else{
+		      printf("empty so next packet seq#%d\n",nextSeqNum);
+		    }
+		    //continue;
+		  }
+		  else{
+		    break;
+		  }
+		}
+		front = pA;
+		if(front == NULL){
+		  printf("all empty, next front should be %d\n",nextSeqNum);
+		}
+		else{
+		  printf("ultimate new front packets #%d\n",front->p.seqNum);
+		}
+	      }
+	      else{
+		printf("only one thing in list so free\n");
+		front = NULL;
+	      }
+	  }
+	  else{
+	    //not the first packet in list
+	    printf("got ack for not first packet in list\n");
+	    struct package *point = front;
+	    int count = 1;
+	    //find matching packet and ACK
+	    printf("front seqNum :%d\n",front->p.seqNum);
+	    printf("incoming tr: %d\n",incoming.timesRepeated);
+	    if (incoming.timesRepeated < 0){
+	      printf("first thing\n");
+	      incoming.timesRepeated = 0;
+	    }
+	    while (point != NULL){
+	      printf("point seqNum: %d\n",point->p.seqNum);
+	      printf("point tr: %d\n",point->p.timesRepeated);
+	      if (point->p.seqNum == incoming.seqNum -PACKET_SIZE){ //found match
+		if(point->p.timesRepeated == incoming.timesRepeated){
+		  packetsSent++;
+		  printf("here?\n");
+		  printf("#%d in list\n",count);
+		  point->acked = 1;
+		  break;
+		}
+		else{
+		  printf("not same cycle\n");
+		}
+	      }
+
+	      //last packet seqNum -- THIS IS THE ERROR
 	      int maxSN = fileSize;
 	      int te = SEQNUM_LIM * timesRepeated;
 	      if (incoming.seqNum == maxSN -te){
@@ -406,8 +572,8 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	  }
 	}
 
-      }
-    }
+	}//*/
+
   }
 }
 
@@ -498,6 +664,7 @@ void retransmitSuccessful(struct packet p, int timesRepeated, int maxPackets){
  int packNum = ((p.seqNum/PACKET_SIZE) + 1) + (timesRepeated*maxPackets);
   printf("Successfully Resent Packet #%d!\n",packNum);
   printf("Sequence Number: %d\n",p.seqNum);
+  printf("Times repeated: %d\n",p.timesRepeated);
   printf("Packet size: %d\n", p.size);
   if (p.type == 3){
     printf("Packet type: data\n");

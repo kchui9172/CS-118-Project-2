@@ -134,6 +134,7 @@ int main(int argc, char **argv) {
       ackRecvPacketsBuffer[j].seqNum = -1;
       //printf("ack in: %d\n",ackRecvPacketsBuffer[i].seqNum);
       ackRecvPacketsBuffer[j].size = -1;
+      ackRecvPacketsBuffer[j].timesRepeated = 0;
       //memset(ackRecvPacketsBuffer[i].data, 0, strlen(ackRecvPacketsBuffer[i].data));
     }
 
@@ -150,23 +151,6 @@ int main(int argc, char **argv) {
       if (n < 0)
       {
 	error("ERROR in recvFrom");
-      }	
-      //now check for packet loss or corruption
-      else
-      {
-	if (corrupt_loss_simulation(prob_corrupt)) //means corrupted packet
-	{
-	  printf("CLIENT: Packet Corrupted: seqNum: %d\n", p_in.seqNum);
-	  continue;
-	}
-	else //check for loss
-        {
-	  if(corrupt_loss_simulation(prob_loss)) //means packet loss
-	  {
-	    printf("CLIENT: Packet Lost: seqNum: %d\n", p_in.seqNum);
-	    continue;
-	  }
-	}
       }
 
       if(p_in.type == 2) //means final packet to acknowledge a close
@@ -174,6 +158,21 @@ int main(int argc, char **argv) {
 	printf("\nCLIENT: Received FIN packet\n");
 	break;
       }
+
+      //now check for packet loss or corruption
+      if (corrupt_loss_simulation(prob_corrupt)) //means corrupted packet
+	{
+	  printf("CLIENT: Packet Corrupted: seqNum: %d\n", p_in.seqNum);
+	  continue;
+	}
+      else //check for loss
+        {
+	  if(corrupt_loss_simulation(prob_loss)) //means packet loss
+	    {
+	      printf("CLIENT: Packet Lost: seqNum: %d\n", p_in.seqNum);
+	      continue;
+	    }
+	}
 
       if(p_in.type == 3) //means this is a data packet
       {
@@ -211,6 +210,7 @@ int main(int argc, char **argv) {
 	      if (size != PACKET_SIZE){
 		printf("last packet to be sent\n");
 	      }
+
 	      current_seqNum = current_seqNum + PACKET_SIZE;
 	      //current_seqNum = current_seqNum + size;
 	      remainder = SEQNUM_LIM - current_seqNum;	
@@ -230,8 +230,9 @@ int main(int argc, char **argv) {
 		      ackRecvPacketsBuffer[i].size = -1;
 		      //memset(ackRecvPacketsBuffer[i].data, 0, strlen(ackRecvPacketsBuffer[i].data));
 		    }
-		  printf("ack %d\n", ackRecvPacketsBuffer[1].seqNum);
-		  printf("ack %d\n", ackRecvPacketsBuffer[2].seqNum);
+		  //printf("ack %d\n", ackRecvPacketsBuffer[1].seqNum);
+		  //printf("ack %d\n", ackRecvPacketsBuffer[2].seqNum);
+		  timesRepeated++;
 		}
 	  }
 
@@ -250,7 +251,16 @@ int main(int argc, char **argv) {
       //}
 		
       //sending ACK packet
+      /*if (current_seqNum == 0){
+	printf("awk case\n");
+	p_out.timesRepeated = timesRepeated-1;
+      }
+      else{
+	p_out.timesRepeated = timesRepeated;
+      }*/
+      p_out.timesRepeated = p_in.timesRepeated;
       p_out.seqNum = p_in.seqNum + p_in.size;
+      printf("why %d\n", p_out.timesRepeated);
       n = sendto(sockfd, &p_out, sizeof(p_out),0, (struct sockaddr*) &serveraddr, serverlen); //send to the socket
       if (n < 0)
 	{

@@ -1,7 +1,7 @@
 //packet
 #include <time.h>
-#define PACKET_SIZE 1024 //should by 1024
-#define SEQNUM_LIM 30720 //should be 30720
+#define PACKET_SIZE 100 //should by 1024
+#define SEQNUM_LIM 1200 //should be 30720
 #define TOUT_SEC 1
 #define TOUT_USEC 0
 
@@ -10,6 +10,7 @@ struct packet{
   char data[PACKET_SIZE];
   int size;
   int seqNum;
+  int timesRepeated;
 };
 
 
@@ -20,6 +21,4 @@ struct package{
   int isMaxPos;
   struct timeval startTime;
   struct package* next;
-
-  
 };
