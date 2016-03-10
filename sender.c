@@ -251,7 +251,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
       }
       e = e->next;
     }
-    printf("Min Time Left Until Next Time Out: %f ms\n",minTimeLeft);
+    printf("\nMin Time Left Until Next Time Out: %f ms\n",minTimeLeft);
 
     if (alreadyRetransmitted == 0){ //didn't already retransmit
       struct timeval left;
@@ -286,7 +286,7 @@ void sendData(int socketfd, struct sockaddr_in clientAddress,
 	  if (incoming.seqNum % PACKET_SIZE != 0){ //last packet size different
 	    packetNumber+=1;
 	  }
-	  printf("RECEIVED AN ACK for Packet with SeqNum#%d\n",incoming.seqNum);
+	  printf("\nRECEIVED AN ACK for Packet with SeqNum #%d\n",incoming.seqNum);
 
 
 	  if (incoming.timesRepeated < 0){
@@ -447,25 +447,25 @@ void sendFIN(int socketfd, struct sockaddr_in clientAddress, socklen_t clientLen
 }
 
 void sentSuccessful(struct packet p, int timesRepeated,int maxPackets){
-  printf("~~~~~~~~~~~~~~~~~~~~~~\n");
+  //printf("~~~~~~~~~~~~~~~~~~~~~~\n");
   int packNum = ((p.seqNum/PACKET_SIZE) + 1) + (timesRepeated*maxPackets);
-  printf("Successfully sent Packet SeqNum #%d!\n",p.seqNum);
+  printf("\nSuccessfully sent Packet SeqNum #%d!\n",p.seqNum);
   printf("Packet size: %d\n", p.size);
   if (p.type == 3){
     printf("Packet type: data\n");
   }
-  printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+  //printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 }
 
 void retransmitSuccessful(struct packet p, int timesRepeated, int maxPackets){
-  printf("~~~~~~~~~~~~~~~~~~~~~~\n");
+  //printf("~~~~~~~~~~~~~~~~~~~~~~\n");
  int packNum = ((p.seqNum/PACKET_SIZE) + 1) + (timesRepeated*maxPackets);
-  printf("Successfully Resent Packet SeqNum #%d!\n",p.seqNum);
+  printf("\nSuccessfully Resent Packet SeqNum #%d!\n",p.seqNum);
   printf("Packet size: %d\n", p.size);
   if (p.type == 3){
     printf("Packet type: data\n");
   }
-  printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+  //printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 }
 
 int corruptOrLossSimulator(double probability){
